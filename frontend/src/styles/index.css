@@ -1,0 +1,91 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500;700&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: 'DM Sans', sans-serif;
+  background: #f0ede8;
+  color: #1a1a2e;
+}
+
+/* ─── Feuille A4 ─────────────────────────────────────── */
+.a4-sheet {
+  background: white;
+  width: 794px;
+  min-height: 1123px;
+  padding: 28px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12);
+  position: relative;
+}
+
+.a4-sheet::after {
+  content: 'A4';
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  font-family: 'DM Mono', monospace;
+  font-size: 9px;
+  color: #e2e0da;
+  letter-spacing: 2px;
+}
+
+/* ─── Étiquette ──────────────────────────────────────── */
+.label-card {
+  border: 1px solid #c8c5bf;
+  padding: 10px 12px 9px;
+  position: relative;
+  overflow: hidden;
+  background: white;
+  break-inside: avoid;
+}
+
+.label-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 3px;
+  height: 100%;
+  background: #e63946;
+}
+
+/* ─── Impression ─────────────────────────────────────── */
+@media print {
+  /* Masque tout sauf la feuille A4 */
+  .no-print {
+    display: none !important;
+  }
+
+  body {
+    background: white !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .print-container {
+    padding: 0 !important;
+  }
+
+  .a4-sheet {
+    box-shadow: none !important;
+    width: 100% !important;
+    min-height: auto !important;
+    margin: 0 !important;
+    padding: 10mm !important;
+  }
+
+  .a4-sheet::after {
+    display: none !important;
+  }
+
+  @page {
+    size: A4;
+    margin: 0;
+  }
+}
