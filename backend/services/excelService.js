@@ -1,5 +1,52 @@
 const XLSX = require("xlsx");
 
+const DATE_HEADER_RE = /\b(date|jour|production|expiration|echeance)\b/i;
+
+function normalizeHeader(header) {
+  return String(header)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
+function isDateField(header) {
+  return DATE_HEADER_RE.test(normalizeHeader(header));
+}
+
+function formatExcelDate(value) {
+  const serial = typeof value === "number" ? value : Number(value);
+
+  if (!Number.isFinite(serial)) {
+    return String(value).trim();
+  }
+
+  const parsed = XLSX.SSF.parse_date_code(serial);
+  if (!parsed) {
+    return String(value).trim();
+  }
+
+  const day = String(parsed.d).padStart(2, "0");
+  const month = String(parsed.m).padStart(2, "0");
+  return `${day}/${month}/${parsed.y}`;
+}
+
+function cleanCellValue(header, value) {
+  if (value == null) {
+    return "";
+  }
+
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value.toLocaleDateString("fr-FR");
+  }
+
+  const rawValue = String(value).trim();
+  if (isDateField(header) && (typeof value === "number" || /^\d+(\.\d+)?$/.test(rawValue))) {
+    return formatExcelDate(value);
+  }
+
+  return typeof value === "string" ? rawValue : String(value).trim();
+}
+
 /**
  * Lit un fichier Excel et retourne un tableau d'objets JSON propres.
  * @param {string} filePath - chemin absolu du fichier uploadé
@@ -59,8 +106,7 @@ function parseExcel(filePath) {
     const record = {};
     headers.forEach((header, idx) => {
       const value = row[idx] ?? "";
-      record[header] =
-        typeof value === "string" ? value.trim() : String(value).trim();
+      record[header] = cleanCellValue(header, value);
     });
 
     data.push(record);
