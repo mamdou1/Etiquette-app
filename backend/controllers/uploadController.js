@@ -1,11 +1,8 @@
 const fs = require("fs");
 const { parseExcel } = require("../services/excelService");
+const { enrichirEtStocker } = require("../services/enrichissementService");
 
-/**
- * POST /api/upload
- * Reçoit le fichier Excel, lit les données, retourne un JSON propre.
- */
-const handleUpload = (req, res) => {
+const handleUpload = async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: "Aucun fichier reçu" });
   }
@@ -15,7 +12,15 @@ const handleUpload = (req, res) => {
   try {
     const { data, fields } = parseExcel(filePath);
 
-    // Supprime le fichier après lecture (pas de stockage persistant)
+    const { enriched, savedCount, agenceTrouvees, nouvellesAgences } = 
+      await enrichirEtStocker(data);
+
+    const allFields = [...fields];
+    const newFields = Object.keys(enriched[0] || {}).filter(
+      (key) => !fields.includes(key)
+    );
+    allFields.push(...newFields);
+
     fs.unlink(filePath, (err) => {
       if (err) console.warn("Impossible de supprimer le fichier temporaire :", err.message);
     });
@@ -23,16 +28,21 @@ const handleUpload = (req, res) => {
     return res.status(200).json({
       success: true,
       filename: req.file.originalname,
-      total: data.length,
-      fields,
-      data,
+      total: enriched.length,
+      fields: allFields,
+      data: enriched,
+      savedCount: savedCount,
+      enriched: true,
+      agenceTrouvees,
+      nouvellesAgences,
+      originalCount: data.length,
+      enrichedCount: enriched.length,
     });
   } catch (error) {
-    // Nettoyage en cas d'erreur
     if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
 
     return res.status(422).json({
-      error: "Impossible de lire le fichier Excel",
+      error: "Impossible de traiter le fichier Excel",
       details: error.message,
     });
   }

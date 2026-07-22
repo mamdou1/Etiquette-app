@@ -1,22 +1,36 @@
 const express = require("express");
 const cors = require("cors");
-const uploadRoutes = require("./routes/upload");
+const dotenv = require("dotenv");
+const { initDatabase } = require("./config/database");
+const routes = require("./routes");
+
+dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Middlewares
-app.use(cors({ origin: "http://localhost:3000" }));
+app.use(cors());
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-// Routes
-app.use("/api", uploadRoutes);
+app.use("/api", routes);
 
-// Health check
-app.get("/", (req, res) => {
-  res.json({ status: "ok", message: "Serveur Étiquettes opérationnel" });
+app.get("/api/health", (req, res) => {
+  res.json({ status: "OK", timestamp: new Date().toISOString() });
 });
 
-app.listen(PORT, () => {
-  console.log(`✅ Serveur démarré sur http://localhost:${PORT}`);
-});
+const startServer = async () => {
+  try {
+    await initDatabase();
+    console.log("✅ Base de données MySQL prête");
+
+    app.listen(PORT, () => {
+      console.log(`🚀 Serveur démarré sur http://localhost:${PORT}`);
+    });
+  } catch (error) {
+    console.error("❌ Erreur lors du démarrage du serveur:", error);
+    process.exit(1);
+  }
+};
+
+startServer();

@@ -5,12 +5,18 @@
   "main": "app.js",
   "scripts": {
     "start": "node app.js",
-    "dev": "nodemon app.js"
+    "dev": "nodemon app.js",
+    "init-db": "node scripts/initDb.js",
+    "seed-agences": "node scripts/seedAgences.js",
+    "seed-boites": "node scripts/seedBoites.js",
+    "setup": "npm install && npm run init-db && npm run seed-agences && npm run seed-boites"
   },
   "dependencies": {
     "cors": "^2.8.5",
+    "dotenv": "^16.6.1",
     "express": "^4.18.2",
     "multer": "^1.4.5-lts.1",
+    "mysql2": "^3.23.1",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {

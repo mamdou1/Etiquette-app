@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500;700&family=DM+Sans:wght@300;400;500;700&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -41,29 +41,59 @@ body {
   min-height: 680px;
 }
 
-/* ─── Étiquette ───────────────────────────────────────── */
+/* ─── Étiquette STYLISÉE ─────────────────────────────── */
 .label-card {
   border: 1px solid #c8c5bf;
   padding: 14px 16px 12px;
   position: relative;
   overflow: hidden;
   background: white;
-  border-radius: 4px;
+  border-radius: 8px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   height: 100%;
   min-height: 200px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  transition: all 0.3s ease;
 }
 
+/* Bande colorée sur le côté */
 .label-card::before {
   content: '';
   position: absolute;
   top: 0;
   left: 0;
-  width: 5px;
+  width: 6px;
   height: 100%;
-  background: #e63946;
+  background: linear-gradient(180deg, #e63946, #f4a261);
+  border-radius: 8px 0 0 8px;
+}
+
+/* Badge de statut */
+.label-card .badge {
+  display: inline-block;
+  padding: 0.15rem 0.6rem;
+  border-radius: 9999px;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+
+/* Style spécial pour les champs */
+.label-card .field-label {
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #9e9b95;
+}
+
+.label-card .field-value {
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: #1a1a2e;
+  line-height: 1.4;
 }
 
 /* ─── Impression ──────────────────────────────────────── */
@@ -107,9 +137,11 @@ body {
 
   .label-card {
     border: 1px solid #c8c5bf !important;
-    min-height: 140px !important;
+    min-height: 0 !important;
     padding: 8px 10px !important;
     height: 100% !important;
+    box-shadow: none !important;
+    border-radius: 4px !important;
   }
 
   @page {
@@ -139,6 +171,7 @@ body {
   }
   
   .label-card {
-    min-height: 140px;
+    min-height: 160px;
+    padding: 10px 12px;
   }
 }
