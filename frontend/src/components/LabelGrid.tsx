@@ -12,28 +12,21 @@ interface Props {
 }
 
 const LabelGrid: React.FC<Props> = ({ boxes, fields, visibleFields, cols, size, boxField }) => {
-  // Calculer la largeur des étiquettes pour s'adapter à la page A4 paysage
-  const getLabelWidth = () => {
-    const pageWidth = 1123; // A4 paysage en px
-    const padding = 60; // 30px de chaque côté
-    const gap = 20;
-    const availableWidth = pageWidth - padding - (cols - 1) * gap;
-    return Math.floor(availableWidth / cols);
-  };
-
-  const labelWidth = getLabelWidth();
+  // FORCÉ à 2 colonnes pour A4 paysage (2×2 = 4 étiquettes par page)
+  const FIXED_COLS = 2;
 
   return (
     <div
       className="label-grid"
       style={{
         display: "grid",
-        gridTemplateColumns: `repeat(${cols}, 1fr)`,
+        gridTemplateColumns: `repeat(${FIXED_COLS}, 1fr)`,
         gap: "16px",
-        maxWidth: "1123px",
-        margin: "0 auto",
+        width: "100%",
+        height: "100%",
       }}
     >
+      {/* AFFICHER TOUTES LES ÉTIQUETTES, PAS SEULEMENT 4 */}
       {boxes.map((box) => (
         <div
           key={box.boxNumber}
@@ -50,7 +43,6 @@ const LabelGrid: React.FC<Props> = ({ boxes, fields, visibleFields, cols, size, 
               allFields={fields}
               visibleFields={visibleFields}
               size={size}
-              width={labelWidth}
               boxNumber={box.boxNumber}
               isCaissier={
                 String(record.caissiers || "").trim() !== "" ||

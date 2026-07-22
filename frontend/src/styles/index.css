@@ -14,35 +14,46 @@ body {
   color: #1a1a2e;
 }
 
-/* ─── Feuille A4 ─────────────────────────────────────── */
+/* ─── Feuille A4 PAYSAGE ─────────────────────────────── */
 .a4-sheet {
   background: white;
-  width: 794px;
-  min-height: 1123px;
-  padding: 28px;
+  width: 1123px;
+  min-height: 794px;
+  padding: 25px 30px;
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12);
   position: relative;
+  margin: 0 auto;
 }
 
-.a4-sheet::after {
-  content: 'A4';
-  position: absolute;
-  top: 8px;
-  right: 12px;
-  font-family: 'DM Mono', monospace;
-  font-size: 9px;
-  color: #e2e0da;
-  letter-spacing: 2px;
+.a4-sheet.a4-landscape {
+  width: 1123px;
+  min-height: 794px;
 }
 
-/* ─── Étiquette ──────────────────────────────────────── */
+/* ─── Grille 2×2 ──────────────────────────────────────── */
+.label-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  grid-template-rows: repeat(2, 1fr);
+  gap: 16px;
+  width: 100%;
+  height: 100%;
+  min-height: 680px;
+}
+
+/* ─── Étiquette ───────────────────────────────────────── */
 .label-card {
   border: 1px solid #c8c5bf;
-  padding: 10px 12px 9px;
+  padding: 14px 16px 12px;
   position: relative;
   overflow: hidden;
   background: white;
-  break-inside: avoid;
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 100%;
+  min-height: 200px;
 }
 
 .label-card::before {
@@ -50,14 +61,13 @@ body {
   position: absolute;
   top: 0;
   left: 0;
-  width: 3px;
+  width: 5px;
   height: 100%;
   background: #e63946;
 }
 
-/* ─── Impression ─────────────────────────────────────── */
+/* ─── Impression ──────────────────────────────────────── */
 @media print {
-  /* Masque tout sauf la feuille A4 */
   .no-print {
     display: none !important;
   }
@@ -70,22 +80,65 @@ body {
 
   .print-container {
     padding: 0 !important;
+    background: white !important;
   }
 
   .a4-sheet {
     box-shadow: none !important;
-    width: 100% !important;
-    min-height: auto !important;
+    width: 100vw !important;
+    min-height: 100vh !important;
     margin: 0 !important;
-    padding: 10mm !important;
+    padding: 8mm 10mm !important;
+    height: 100vh !important;
+    page-break-after: always;
   }
 
-  .a4-sheet::after {
-    display: none !important;
+  .a4-sheet:last-child {
+    page-break-after: avoid;
+  }
+
+  .label-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    grid-template-rows: repeat(2, 1fr) !important;
+    gap: 12px !important;
+    min-height: auto !important;
+    height: 100% !important;
+  }
+
+  .label-card {
+    border: 1px solid #c8c5bf !important;
+    min-height: 140px !important;
+    padding: 8px 10px !important;
+    height: 100% !important;
   }
 
   @page {
-    size: A4;
+    size: A4 landscape;
     margin: 0;
+  }
+}
+
+/* ─── Responsive ──────────────────────────────────────── */
+@media (max-width: 1200px) {
+  .a4-sheet {
+    width: 100%;
+    min-height: auto;
+    padding: 16px;
+  }
+}
+
+@media (max-width: 768px) {
+  .a4-sheet {
+    padding: 12px;
+  }
+  
+  .label-grid {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto;
+    gap: 10px;
+  }
+  
+  .label-card {
+    min-height: 140px;
   }
 }
