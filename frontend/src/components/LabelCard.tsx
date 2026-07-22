@@ -12,7 +12,6 @@ interface Props {
   isCaissier?: boolean;
 }
 
-// ─── MAPPING clés techniques → libellés d'affichage ──
 const KEY_MAPPING: Record<string, string> = {
   boxNumber: "N° Boîte",
   box: "N° Boîte",
@@ -40,8 +39,6 @@ const KEY_MAPPING: Record<string, string> = {
   agence: "Nom de l'Agence",
 };
 
-// ─── HELPERS ────────────────────────────────────────────
-
 function normalizeText(value: string): string {
   return value
     .normalize("NFD")
@@ -66,19 +63,16 @@ function findValue(record: LabelRecord, possibleKeys: string[]): LabelValue | un
 }
 
 function getValue(record: LabelRecord, key: string): LabelValue | undefined {
-  // Recherche directe
   if (record[key] !== undefined && record[key] !== null && record[key] !== "") {
     return record[key];
   }
 
-  // Recherche via KEY_MAPPING
   const displayName = KEY_MAPPING[key];
   if (displayName) {
     const found = findValue(record, [displayName]);
     if (found !== undefined) return found;
   }
 
-  // Recherche avec normalisation
   const normalized = normalizeText(key);
   for (const recordKey of Object.keys(record)) {
     if (normalizeText(recordKey) === normalized) {
@@ -122,7 +116,7 @@ function getDisplayFields(record: LabelRecord, visibleFields: string[]): { key: 
   return result;
 }
 
-// ─── COMPOSANT ──────────────────────────────────────────
+const fontScale: Record<LabelSize, number> = { sm: 0.85, md: 1, lg: 1.15 };
 
 const LabelCard: React.FC<Props> = ({
   record,
@@ -133,11 +127,12 @@ const LabelCard: React.FC<Props> = ({
   boxNumber,
   isCaissier = false,
 }) => {
+  const scale = fontScale[size];
+
   const displayFields = useMemo(() => {
     return getDisplayFields(record, visibleFields);
   }, [record, visibleFields]);
 
-  // QR Code = TOUS les champs (même ceux non visibles)
   const qrData = useMemo(() => {
     const lines: string[] = [`N° Boîte: ${boxNumber}`];
     for (const field of allFields) {
@@ -152,10 +147,29 @@ const LabelCard: React.FC<Props> = ({
   const hasData = displayFields.length > 0;
   const fieldCount = displayFields.length;
 
-  // Taille du QR Code dynamique
-  const qrSize = fieldCount <= 2 ? 70 : fieldCount <= 4 ? 60 : 50;
+  const getFontSize = () => {
+    if (fieldCount <= 2) return "text-base";
+    if (fieldCount <= 4) return "text-sm";
+    return "text-xs";
+  };
 
-  // Styles pour les étiquettes
+  const getLabelFontSize = () => {
+    if (fieldCount <= 2) return "text-[11px]";
+    if (fieldCount <= 4) return "text-[10px]";
+    return "text-[9px]";
+  };
+
+  const getValueFontSize = () => {
+    if (fieldCount <= 2) return "text-[15px]";
+    if (fieldCount <= 4) return "text-[13px]";
+    return "text-[11px]";
+  };
+
+  const fontSize = getFontSize();
+  const labelSize = getLabelFontSize();
+  const valueSize = getValueFontSize();
+  const qrSize = fieldCount <= 2 ? 60 : fieldCount <= 4 ? 50 : 40;
+
   const labelColors = [
     { bg: "bg-blue-50", border: "border-blue-200" },
     { bg: "bg-green-50", border: "border-green-200" },
@@ -163,7 +177,6 @@ const LabelCard: React.FC<Props> = ({
     { bg: "bg-amber-50", border: "border-amber-200" },
   ];
 
-  // Couleur basée sur le nombre de champs ou aléatoire
   const colorIndex = Math.min(fieldCount - 1, labelColors.length - 1);
   const color = labelColors[Math.max(0, colorIndex)];
 
@@ -172,9 +185,8 @@ const LabelCard: React.FC<Props> = ({
       className={`label-card ${isCaissier ? "border-emerald-500 border-2 shadow-lg" : ""} ${color.bg} ${color.border}`}
       style={width ? { width } : undefined}
     >
-      {/* En-tête avec N° Boîte en GROS ET GRAS */}
-      <div className="mb-3 pb-2 border-b-2 border-border flex items-center justify-between">
-        <span className="font-mono font-extrabold text-primary text-2xl tracking-tight">
+      <div className="mb-2 pb-2 border-b-2 border-border flex items-center justify-between">
+        <span className="font-mono font-extrabold text-primary text-xl tracking-tight">
           {boxNumber}
         </span>
         <div className="flex items-center gap-2">
@@ -195,27 +207,21 @@ const LabelCard: React.FC<Props> = ({
         </p>
       ) : (
         <>
-          {/* Champs visibles - TAILLE AUGMENTÉE ET STYLISÉE */}
-          <div className="flex-1 space-y-2 py-2">
+          <div className="flex-1 space-y-1.5 py-1">
             {displayFields.map(({ key, label, value }) => (
               <div
                 key={key}
-                className="font-mono flex items-baseline gap-2 min-w-0 p-1 rounded bg-white/50 hover:bg-white/80 transition-colors"
+                className="font-mono flex items-baseline gap-1.5 min-w-0 p-1 rounded bg-white/50 hover:bg-white/80 transition-colors"
               >
                 <span
-                  className="text-muted font-semibold flex-shrink-0 text-sm tracking-wide uppercase"
-                  style={{ fontSize: "0.7rem", letterSpacing: "0.08em" }}
+                  className={`text-muted font-semibold flex-shrink-0 ${labelSize}`}
+                  style={{ letterSpacing: "0.08em" }}
                 >
                   {label}:
                 </span>
                 <span
-                  className="font-medium text-primary"
-                  style={{ 
-                    fontSize: "0.95rem",
-                    whiteSpace: "normal", 
-                    wordBreak: "break-word",
-                    lineHeight: "1.4"
-                  }}
+                  className={`font-medium text-primary ${valueSize}`}
+                  style={{ whiteSpace: "normal", wordBreak: "break-word" }}
                 >
                   {value || "—"}
                 </span>
@@ -223,8 +229,7 @@ const LabelCard: React.FC<Props> = ({
             ))}
           </div>
 
-          {/* QR Code - Taille dynamique */}
-          <div className="mt-2 flex justify-end">
+          <div className="mt-1 flex justify-end">
             <div className="bg-white p-1 rounded shadow-sm border border-border/30">
               <QRCodeSVG
                 value={qrData}
@@ -239,8 +244,7 @@ const LabelCard: React.FC<Props> = ({
         </>
       )}
 
-      {/* Pied - style amélioré */}
-      <div className="mt-2 pt-2 border-t-2 border-dashed border-border/60 flex justify-between items-center">
+      <div className="mt-1 pt-1 border-t border-dashed border-border/60 flex justify-between items-center">
         <span className="font-mono text-muted/50 font-bold" style={{ fontSize: "0.5rem", letterSpacing: "0.05em" }}>
           {boxNumber}
         </span>

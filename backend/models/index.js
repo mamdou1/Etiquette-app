@@ -6,26 +6,20 @@ const AgenceModel = {
   findByNom: async (nom) => {
     const [rows] = await pool.execute(
       "SELECT * FROM agences WHERE nom = ? AND active = TRUE",
-      [nom]
-    );
-    return rows.length ? rows[0] : null;
-  },
-
-  findByCode: async (code) => {
-    const [rows] = await pool.execute(
-      "SELECT * FROM agences WHERE code = ? AND active = TRUE",
-      [code]
+      [String(nom).substring(0, 100)]
     );
     return rows.length ? rows[0] : null;
   },
 
   findOrCreate: async (nom) => {
-    const existing = await AgenceModel.findByNom(nom);
+    const nomTronque = String(nom).substring(0, 100);
+    
+    const existing = await AgenceModel.findByNom(nomTronque);
     if (existing) return existing;
 
     const [result] = await pool.execute(
-      "INSERT INTO agences (nom, code, active) VALUES (?, ?, TRUE)",
-      [nom, nom.toUpperCase()]
+      "INSERT INTO agences (nom, code, active) VALUES (?, NULL, TRUE)",
+      [nomTronque]
     );
 
     const [rows] = await pool.execute(
@@ -79,7 +73,7 @@ const BoiteModel = {
   findByNumero: async (numero) => {
     const [rows] = await pool.execute(
       "SELECT * FROM boites WHERE numero = ?",
-      [numero]
+      [String(numero).substring(0, 50)]
     );
     return rows.length ? rows[0] : null;
   },
@@ -90,14 +84,23 @@ const BoiteModel = {
     const [result] = await pool.execute(
       `INSERT INTO boites (numero, agence_id, date_production, type_document, caissiers, annee, observation)
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [numero, agence_id, date_production || null, type_document || null, caissiers || null, annee || null, observation || null]
+      [
+        String(numero).substring(0, 50),
+        agence_id,
+        date_production || null,
+        type_document ? String(type_document).substring(0, 100) : null,
+        caissiers ? String(caissiers).substring(0, 255) : null,
+        annee ? String(annee).substring(0, 10) : null,
+        observation ? String(observation).substring(0, 255) : null,
+      ]
     );
     
     return result.insertId;
   },
 
   upsert: async (boite) => {
-    const existing = await BoiteModel.findByNumero(boite.numero);
+    const numeroTronque = String(boite.numero).substring(0, 50);
+    const existing = await BoiteModel.findByNumero(numeroTronque);
     
     if (existing) {
       await pool.execute(
@@ -108,10 +111,10 @@ const BoiteModel = {
         [
           boite.agence_id,
           boite.date_production || null,
-          boite.type_document || null,
-          boite.caissiers || null,
-          boite.annee || null,
-          boite.observation || null,
+          boite.type_document ? String(boite.type_document).substring(0, 100) : null,
+          boite.caissiers ? String(boite.caissiers).substring(0, 255) : null,
+          boite.annee ? String(boite.annee).substring(0, 10) : null,
+          boite.observation ? String(boite.observation).substring(0, 255) : null,
           existing.id
         ]
       );
@@ -125,63 +128,38 @@ const BoiteModel = {
 // ─── ARCHIVES ──────────────────────────────────────────────────
 
 const ArchiveModel = {
-  save: async (archive) => {
-    const {
-      numero_boite,
-      agence_id,
-      agence_nom,
-      date_production,
-      type_document,
-      caissiers,
-      annee,
-      observation,
-      source,
-    } = archive;
-
-    const [result] = await pool.execute(
-      `INSERT INTO archives (
-        numero_boite, agence_id, agence_nom, date_production, 
-        type_document, caissiers, annee, observation, source
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        numero_boite,
-        agence_id,
-        agence_nom,
-        date_production,
-        type_document,
-        caissiers,
-        annee,
-        observation || null,
-        source,
-      ]
-    );
-
-    return result.insertId;
-  },
-
+  // ✅ Méthode saveMany corrigée
   saveMany: async (archives) => {
     if (archives.length === 0) return 0;
 
-    const values = archives.map((a) => [
-      a.numero_boite,
-      a.agence_id,
-      a.agence_nom,
-      a.date_production,
-      a.type_document,
-      a.caissiers,
-      a.annee,
-      a.observation || null,
-      a.source,
-    ]);
+    // Construire la requête avec des placeholders individuels
+    const placeholders = archives.map(() => 
+      "(?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    ).join(", ");
+    
+    const values = [];
+    archives.forEach((a) => {
+      values.push(
+        String(a.numero_boite).substring(0, 50),
+        a.agence_id || 0,
+        String(a.agence_nom).substring(0, 100),
+        a.date_production ? String(a.date_production).substring(0, 20) : null,
+        a.type_document ? String(a.type_document).substring(0, 100) : null,
+        a.caissiers ? String(a.caissiers).substring(0, 255) : null,
+        a.annee ? String(a.annee).substring(0, 10) : null,
+        a.observation ? String(a.observation).substring(0, 255) : null,
+        a.source || "upload"
+      );
+    });
 
-    const [result] = await pool.execute(
-      `INSERT INTO archives (
+    const query = `
+      INSERT INTO archives (
         numero_boite, agence_id, agence_nom, date_production,
         type_document, caissiers, annee, observation, source
-      ) VALUES ?`,
-      [values]
-    );
+      ) VALUES ${placeholders}
+    `;
 
+    const [result] = await pool.execute(query, values);
     return result.affectedRows;
   },
 
@@ -255,14 +233,14 @@ const ArchiveModel = {
 
   getDocumentTypes: async () => {
     const [rows] = await pool.execute(
-      "SELECT DISTINCT type_document FROM archives WHERE type_document != '' ORDER BY type_document"
+      "SELECT DISTINCT type_document FROM archives WHERE type_document IS NOT NULL AND type_document != '' ORDER BY type_document"
     );
     return rows.map((r) => r.type_document);
   },
 
   getAnnees: async () => {
     const [rows] = await pool.execute(
-      "SELECT DISTINCT annee FROM archives WHERE annee != '' ORDER BY annee DESC"
+      "SELECT DISTINCT annee FROM archives WHERE annee IS NOT NULL AND annee != '' ORDER BY annee DESC"
     );
     return rows.map((r) => r.annee);
   },

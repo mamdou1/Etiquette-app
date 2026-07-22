@@ -21,6 +21,12 @@ export interface UploadResponse {
   total: number;
   fields: string[];
   data: LabelRecord[];
+  savedCount?: number;
+  enriched?: boolean;
+  agenceTrouvees?: string[];
+  nouvellesAgences?: string[];
+  originalCount?: number;
+  enrichedCount?: number;
 }
 
 export type ColumnCount = 2 | 3 | 4;
@@ -38,4 +44,19 @@ export interface PrintSettings {
   cols: ColumnCount;
   size: LabelSize;
   visibleFields: string[];
+}
+
+export interface Archive {
+  id?: number;
+  numero_boite: string;
+  agence_id: number;
+  agence_nom: string;
+  date_production: string;
+  type_document: string;
+  caissiers: string;
+  annee: string;
+  observation?: string;
+  source: string;
+  uploaded_at?: Date;
+  created_at?: Date;
 }

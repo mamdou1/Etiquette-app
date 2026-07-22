@@ -12,7 +12,6 @@ interface Props {
 }
 
 const LabelGrid: React.FC<Props> = ({ boxes, fields, visibleFields, cols, size, boxField }) => {
-  // FORCÉ à 2 colonnes pour A4 paysage (2×2 = 4 étiquettes par page)
   const FIXED_COLS = 2;
 
   return (
@@ -26,7 +25,6 @@ const LabelGrid: React.FC<Props> = ({ boxes, fields, visibleFields, cols, size, 
         height: "100%",
       }}
     >
-      {/* AFFICHER TOUTES LES ÉTIQUETTES, PAS SEULEMENT 4 */}
       {boxes.map((box) => (
         <div
           key={box.boxNumber}

@@ -1,23 +1,21 @@
-import { UploadResponse } from "../types";
+import axios from "axios";
+import { LabelRecord, UploadResponse } from "../types";
 
-const API_BASE = process.env.REACT_APP_API_URL || "/api";
+const API_URL = process.env.REACT_APP_API_URL || "http://localhost:5000/api";
 
-/**
- * Envoie le fichier Excel au backend et retourne les données JSON.
- */
-export async function uploadExcel(file: File): Promise<UploadResponse> {
+export const uploadExcel = async (file: File): Promise<UploadResponse> => {
   const formData = new FormData();
   formData.append("file", file);
 
-  const response = await fetch(`${API_BASE}/upload`, {
-    method: "POST",
-    body: formData,
-  });
+  const response = await axios.post<UploadResponse>(
+    `${API_URL}/upload`,
+    formData,
+    {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    }
+  );
 
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({}));
-    throw new Error(err.details || err.error || "Erreur lors de l'upload");
-  }
-
-  return response.json();
-}
+  return response.data;
+};

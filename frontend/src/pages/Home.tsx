@@ -3,6 +3,7 @@ import * as XLSX from "xlsx";
 import FileUpload from "../components/FileUpload";
 import SettingsPanel from "../components/SettingsPanel";
 import PrintPreview from "../components/PrintPreview";
+import { uploadExcel } from "../services/api";
 import { LabelRecord, BoxGroup, ColumnCount, LabelSize, FieldFilters } from "../types";
 
 // ─── Helpers ──────────────────────────────────────────────────
@@ -90,9 +91,6 @@ function cleanCellValue(header: string, value: unknown): string {
   return rawValue;
 }
 
-/**
- * Détecte automatiquement le champ qui sert de "numéro de boîte"
- */
 function detectBoxField(headers: string[], records: LabelRecord[]): string {
   if (headers.length === 0) return "";
   if (records.length === 0) return headers[0];
@@ -114,7 +112,6 @@ function detectBoxField(headers: string[], records: LabelRecord[]): string {
   for (const header of headers) {
     const nh = normalizeText(header);
 
-    // Pénalité pour les champs de type "personne" (caissier, preparateur, nom, etc.)
     const personFields = ["caissier", "caissiers", "caissiere", "preparateur", "prep", "nom", "prenom", "responsable", "agent", "employe", "employé", "personne"];
     const isPersonField = personFields.some((kw) => nh.includes(kw));
     const personPenalty = isPersonField ? 50 : 0;
@@ -128,13 +125,11 @@ function detectBoxField(headers: string[], records: LabelRecord[]): string {
     const weakMatch = WEAK_BOX_KEYWORDS.some((kw) => nh.includes(kw));
     const weakBonus = weakMatch ? 2.0 : 0;
 
-    // Bonus si les valeurs ressemblent à des numéros de boîte (contiennent "/" comme "001/2023")
     const values = records.map((r) => String(r[header] ?? "").trim());
     const uniqueCount = new Set(values).size;
     const totalCount = values.length;
     const duplicateRatio = uniqueCount > 0 ? 1 - uniqueCount / totalCount : 0;
 
-    // Bonus pour les valeurs qui contiennent des patterns comme "XXX/YYYY" (numéros de boîte typiques)
     const boxPatternCount = values.filter((v) => /^\d+[/]\d+/.test(v)).length;
     const boxPatternBonus = boxPatternCount > totalCount * 0.5 ? 5.0 : 0;
 
@@ -149,11 +144,6 @@ function detectBoxField(headers: string[], records: LabelRecord[]): string {
   return bestField;
 }
 
-/**
- * Fusionne les enregistrements d'une même boîte en un seul.
- * - Si tous les enregistrements ont la même valeur pour un champ → on garde cette valeur
- * - Si les valeurs diffèrent → on les fusionne avec ", "
- */
 function mergeRecords(records: LabelRecord[]): LabelRecord[] {
   if (records.length <= 1) return records;
 
@@ -168,10 +158,8 @@ function mergeRecords(records: LabelRecord[]): LabelRecord[] {
     if (uniqueValues.length === 0) {
       merged[key] = "";
     } else if (uniqueValues.length === 1) {
-      // Tous les enregistrements ont la même valeur → on garde
       merged[key] = uniqueValues[0];
     } else {
-      // Valeurs différentes → on les fusionne avec ", "
       merged[key] = uniqueValues.join(", ");
     }
   }
@@ -259,24 +247,23 @@ const Home: React.FC = () => {
   const [boxes, setBoxes] = useState<BoxGroup[]>([]);
   const [fields, setFields] = useState<string[]>([]);
   const [visibleFields, setVisibleFields] = useState<string[]>([]);
-  const [cols, setCols] = useState<ColumnCount>(2); // Par défaut 2 colonnes pour A4 paysage
+  const [cols, setCols] = useState<ColumnCount>(2);
   const [size, setSize] = useState<LabelSize>("md");
   const [filters, setFilters] = useState<FieldFilters>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [filename, setFilename] = useState("");
   const [boxField, setBoxField] = useState<string>("");
+  const [enrichedInfo, setEnrichedInfo] = useState<{ original: number; saved: number } | null>(null);
+  const [uploading, setUploading] = useState(false);
 
-  // Aplatir tous les enregistrements pour le filtrage
   const allRecords = useMemo(() => boxes.flatMap((b) => b.records), [boxes]);
 
-  // Filtrer les enregistrements
   const filteredRecords = useMemo(
     () => allRecords.filter((record) => recordMatchesFilters(record, filters)),
     [allRecords, filters],
   );
 
-  // Re-grouper les enregistrements filtrés par boîte
   const filteredBoxes = useMemo(() => {
     if (!boxField || !filteredRecords.length) return [];
     return groupByBox(filteredRecords, boxField);
@@ -285,14 +272,36 @@ const Home: React.FC = () => {
   const handleFile = async (file: File) => {
     setLoading(true);
     setError("");
+    setEnrichedInfo(null);
+    
     try {
+      // 1. Parser le fichier Excel (frontend)
       const result = await parseExcelToBoxes(file);
+      
       setBoxes(result.boxes);
       setFields(result.fields);
       setVisibleFields(result.fields);
       setFilename(result.filename);
       setBoxField(result.boxKey);
       setFilters({});
+
+      // 2. ✅ Envoyer les données au backend pour stockage
+      setUploading(true);
+      try {
+        const response = await uploadExcel(file);
+        if (response.success && response.enriched) {
+          setEnrichedInfo({
+            original: response.originalCount || 0,
+            saved: response.savedCount || 0,
+          });
+        }
+      } catch (err: any) {
+        console.warn("⚠️ Stockage dans les archives échoué:", err.message);
+        // Ne pas bloquer l'affichage si le stockage échoue
+      } finally {
+        setUploading(false);
+      }
+
     } catch (err: any) {
       setError(err.message || "Erreur lors de la lecture du fichier");
     } finally {
@@ -307,6 +316,7 @@ const Home: React.FC = () => {
     setFilters({});
     setFilename("");
     setError("");
+    setEnrichedInfo(null);
   };
 
   const toggleField = (key: string) => {
@@ -344,115 +354,110 @@ const Home: React.FC = () => {
   const totalBoxes = filteredBoxes.length;
 
   return (
-    <div className="flex flex-col min-h-screen">
-      {/* Header */}
-      <header className="no-print bg-primary text-white px-8 py-4 flex items-center gap-4 border-b-4 border-accent">
-        <div className="w-10 h-10 bg-accent flex items-center justify-center font-mono font-bold text-base flex-shrink-0">
-          ÉT
-        </div>
-        <div>
-          <h1 className="text-lg font-bold tracking-tight">
-            Générateur d'Étiquettes
-          </h1>
-          <p className="text-xs text-white/50 font-mono mt-0.5">
-            Import Excel → QR Codes → Impression A4 Paysage
-          </p>
-        </div>
-      </header>
-
-      <div className="flex flex-1 min-h-0">
-        {!hasData ? (
-          <main className="flex-1 flex items-center justify-center bg-[#f0ede8]">
-            <div className="w-full max-w-md px-6">
-              <div className="text-center mb-6">
-                <svg
-                  className="mx-auto mb-4 opacity-20"
-                  width="72"
-                  height="72"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="#1a1a2e"
-                  strokeWidth="0.8"
-                >
-                  <rect x="3" y="3" width="7" height="7" />
-                  <rect x="14" y="3" width="7" height="7" />
-                  <rect x="3" y="14" width="7" height="7" />
-                  <rect x="14" y="14" width="7" height="7" />
-                </svg>
-                <h2 className="text-xl font-bold mb-1">
-                  Importer un fichier Excel
-                </h2>
-                <p className="text-sm text-muted font-mono">
-                  Les données seront regroupées par boîte et converties en étiquettes imprimables
-                </p>
-              </div>
-              <FileUpload onFile={handleFile} loading={loading} />
-              {error && (
-                <p className="mt-3 text-sm text-accent font-mono text-center bg-accent-light border border-accent px-3 py-2">
-                  ⚠ {error}
-                </p>
-              )}
-              <div className="mt-6 border border-border bg-white p-4">
-                <p className="font-mono text-[10px] text-muted uppercase tracking-widest mb-2">
-                  Structure Excel attendue
-                </p>
-                <table className="w-full text-xs font-mono border-collapse">
-                  <thead>
-                    <tr className="bg-surface">
-                      {["N° Boîte", "Date", "Type", "Caissiers", "Observation"].map((h) => (
-                        <th key={h} className="border border-border px-2 py-1 text-left text-muted font-medium">
-                          {h}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      {["BOX-001", "15/01/2024", "Standard", "Moussa Diallo", "Livraison matin"].map((c, i) => (
-                        <td key={i} className="border border-border px-2 py-1">{c}</td>
-                      ))}
-                    </tr>
-                    <tr>
-                      {["BOX-002", "15/01/2024", "Express", "Fatoumata Traoré", "Urgent"].map((c, i) => (
-                        <td key={i} className="border border-border px-2 py-1">{c}</td>
-                      ))}
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
+    <div className="flex flex-1 min-h-[calc(100vh-120px)]">
+      {!hasData ? (
+        <main className="flex-1 flex items-center justify-center">
+          <div className="w-full max-w-md">
+            <div className="text-center mb-6">
+              <svg
+                className="mx-auto mb-4 opacity-20"
+                width="72"
+                height="72"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="#1a1a2e"
+                strokeWidth="0.8"
+              >
+                <rect x="3" y="3" width="7" height="7" />
+                <rect x="14" y="3" width="7" height="7" />
+                <rect x="3" y="14" width="7" height="7" />
+                <rect x="14" y="14" width="7" height="7" />
+              </svg>
+              <h2 className="text-xl font-bold mb-1">
+                Importer un fichier Excel
+              </h2>
+              <p className="text-sm text-muted font-mono">
+                Les données seront regroupées par boîte et converties en étiquettes imprimables
+              </p>
             </div>
-          </main>
-        ) : (
-          <>
-            <SettingsPanel
-              fields={fields}
-              visibleFields={visibleFields}
-              cols={cols}
-              size={size}
-              filters={filters}
-              onToggleField={toggleField}
-              onReorderFields={handleReorderFields}
-              onColsChange={setCols}
-              onSizeChange={setSize}
-              onFilterChange={updateFilter}
-              onClearFilters={clearFilters}
-              onPrint={() => window.print()}
-              onReset={reset}
-              filename={filename}
-              total={totalBoxes}
-              sourceTotal={boxes.length}
-            />
-            <PrintPreview
-              boxes={filteredBoxes}
-              fields={fields}
-              visibleFields={visibleFields}
-              cols={cols}
-              size={size}
-              boxField={boxField}
-            />
-          </>
-        )}
-      </div>
+            <FileUpload onFile={handleFile} loading={loading || uploading} />
+            
+            {error && (
+              <p className="mt-3 text-sm text-accent font-mono text-center bg-accent-light border border-accent px-3 py-2 rounded">
+                ⚠ {error}
+              </p>
+            )}
+
+            {enrichedInfo && (
+              <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded">
+                <p className="text-sm text-green-700 font-mono">
+                  ✅ Stockage terminé : 
+                  <span className="font-bold"> {enrichedInfo.original}</span> ligne(s) traitées
+                  → <span className="font-bold">{enrichedInfo.saved}</span> ligne(s) sauvegardée(s) dans les archives
+                </p>
+              </div>
+            )}
+
+            <div className="mt-6 border border-border bg-white p-4 rounded-lg">
+              <p className="font-mono text-[10px] text-muted uppercase tracking-widest mb-2">
+                Structure Excel attendue
+              </p>
+              <table className="w-full text-xs font-mono border-collapse">
+                <thead>
+                  <tr className="bg-surface">
+                    {["N° de la Boite", "Date de Production", "Type de Document", "Nom des caissiers", "Nom de l'Agence", "Année", "Observation"].map((h) => (
+                      <th key={h} className="border border-border px-2 py-1 text-left text-muted font-medium">
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    {["BOX-001", "08/08/2023", "Pièces de caisse", "Djénéba C.", "DGEI", "2023", "Test"].map((c, i) => (
+                      <td key={i} className="border border-border px-2 py-1">{c}</td>
+                    ))}
+                  </tr>
+                  <tr>
+                    {["BOX-002", "09/08/2023", "Pièces de caisse", "Moussa D.", "DGEI", "2023", ""].map((c, i) => (
+                      <td key={i} className="border border-border px-2 py-1">{c}</td>
+                    ))}
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </main>
+      ) : (
+        <>
+          <SettingsPanel
+            fields={fields}
+            visibleFields={visibleFields}
+            cols={cols}
+            size={size}
+            filters={filters}
+            onToggleField={toggleField}
+            onReorderFields={handleReorderFields}
+            onColsChange={setCols}
+            onSizeChange={setSize}
+            onFilterChange={updateFilter}
+            onClearFilters={clearFilters}
+            onPrint={() => window.print()}
+            onReset={reset}
+            filename={filename}
+            total={totalBoxes}
+            sourceTotal={boxes.length}
+          />
+          <PrintPreview
+            boxes={filteredBoxes}
+            fields={fields}
+            visibleFields={visibleFields}
+            cols={cols}
+            size={size}
+            boxField={boxField}
+          />
+        </>
+      )}
     </div>
   );
 };
