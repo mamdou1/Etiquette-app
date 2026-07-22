@@ -1,32 +1,64 @@
 import React from "react";
 import LabelCard from "./LabelCard";
-import { LabelRecord, LabelSize, ColumnCount } from "../types";
+import { BoxGroup, LabelSize, ColumnCount } from "../types";
 
 interface Props {
-  data: LabelRecord[];
+  boxes: BoxGroup[];
+  fields: string[];
   visibleFields: string[];
   cols: ColumnCount;
   size: LabelSize;
+  boxField: string;
 }
 
-const LabelGrid: React.FC<Props> = ({ data, visibleFields, cols, size }) => {
+const LabelGrid: React.FC<Props> = ({ boxes, fields, visibleFields, cols, size, boxField }) => {
+  // Calculer la largeur des étiquettes pour s'adapter à la page A4 paysage
+  const getLabelWidth = () => {
+    const pageWidth = 1123; // A4 paysage en px
+    const padding = 60; // 30px de chaque côté
+    const gap = 20;
+    const availableWidth = pageWidth - padding - (cols - 1) * gap;
+    return Math.floor(availableWidth / cols);
+  };
+
+  const labelWidth = getLabelWidth();
+
   return (
     <div
       className="label-grid"
       style={{
         display: "grid",
         gridTemplateColumns: `repeat(${cols}, 1fr)`,
-        gap: "10px",
+        gap: "16px",
+        maxWidth: "1123px",
+        margin: "0 auto",
       }}
     >
-      {data.map((record, i) => (
-        <LabelCard
-          key={i}
-          record={record}
-          visibleFields={visibleFields}
-          size={size}
-          index={i}
-        />
+      {boxes.map((box) => (
+        <div
+          key={box.boxNumber}
+          className="box-group"
+          style={{
+            breakInside: "avoid",
+            pageBreakInside: "avoid",
+          }}
+        >
+          {box.records.map((record, idx) => (
+            <LabelCard
+              key={idx}
+              record={record}
+              allFields={fields}
+              visibleFields={visibleFields}
+              size={size}
+              width={labelWidth}
+              boxNumber={box.boxNumber}
+              isCaissier={
+                String(record.caissiers || "").trim() !== "" ||
+                String(record.caissier || "").trim() !== ""
+              }
+            />
+          ))}
+        </div>
       ))}
     </div>
   );

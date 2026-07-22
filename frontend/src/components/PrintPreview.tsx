@@ -1,34 +1,48 @@
 import React from "react";
 import LabelGrid from "./LabelGrid";
-import { LabelRecord, LabelSize, ColumnCount } from "../types";
+import { BoxGroup, LabelSize, ColumnCount } from "../types";
 
 interface Props {
-  data: LabelRecord[];
+  boxes: BoxGroup[];           // ✅ Ajouté
+  fields: string[];
   visibleFields: string[];
   cols: ColumnCount;
   size: LabelSize;
+  boxField: string;
 }
 
-const PrintPreview: React.FC<Props> = ({ data, visibleFields, cols, size }) => {
-  const lines = Math.ceil(data.length / cols);
+const PrintPreview: React.FC<Props> = ({ 
+  boxes, 
+  fields, 
+  visibleFields, 
+  cols, 
+  size, 
+  boxField 
+}) => {
+  const totalBoxes = boxes.length;
+  const totalRecords = boxes.reduce((sum, b) => sum + b.records.length, 0);
+  const lines = Math.ceil(totalBoxes / cols);
 
   return (
-    <div className="flex-1 p-8 overflow-y-auto print-container">
+    <div className="flex-1 p-8 overflow-y-auto print-container bg-[#f0ede8]">
       {/* Stats (masquées à l'impression) */}
-      <div className="no-print flex gap-6 mb-5 font-mono text-xs text-muted">
-        <span><strong className="text-primary">{data.length}</strong> étiquettes</span>
+      <div className="no-print flex flex-wrap gap-6 mb-5 font-mono text-xs text-muted">
+        <span><strong className="text-primary">{totalBoxes}</strong> boîtes</span>
+        <span><strong className="text-primary">{totalRecords}</strong> enregistrements</span>
         <span><strong className="text-primary">{cols}</strong> colonnes</span>
-        <span><strong className="text-primary">{visibleFields.length}</strong> champ{visibleFields.length > 1 ? "s" : ""}</span>
         <span><strong className="text-primary">{lines}</strong> ligne{lines > 1 ? "s" : ""}</span>
+        <span><strong className="text-primary">{fields.length}</strong> champs</span>
       </div>
 
-      {/* Feuille A4 */}
-      <div className="a4-sheet mx-auto">
+      {/* Feuille A4 Paysage */}
+      <div className="a4-sheet a4-landscape mx-auto">
         <LabelGrid
-          data={data}
+          boxes={boxes}
+          fields={fields}
           visibleFields={visibleFields}
           cols={cols}
           size={size}
+          boxField={boxField}
         />
       </div>
     </div>

@@ -1,7 +1,18 @@
-// Types partagés dans toute l'application
+export type LabelValue = string | number | string[];
 
 export interface LabelRecord {
-  [key: string]: string | number;
+  [key: string]: LabelValue;
+}
+
+export interface BoxGroup {
+  boxNumber: string;
+  records: LabelRecord[];
+}
+
+export interface UploadBoxResponse {
+  filename: string;
+  total: number;
+  boxes: BoxGroup[];
 }
 
 export interface UploadResponse {
