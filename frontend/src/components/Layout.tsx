@@ -9,9 +9,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const location = useLocation();
 
   const navItems = [
-    { path: "/", label: "🏷️ Étiquettes", icon: "📋" },
-    { path: "/agences", label: "🏢 Agences", icon: "🏢" },
-    { path: "/recherche", label: "🔍 Recherche", icon: "🔍" },
+    { path: "/", label: "🏷️ Étiquettes" },
+    { path: "/agences", label: " Agences", icon: "🏢" },
+    { path: "/recherche", label: " Recherche", icon: "🔍" },
   ];
 
   return (
@@ -32,7 +32,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             </Link>
 
             {/* Navigation */}
-            <nav className="flex items-center gap-1 sm:gap-2">
+            <nav className="flex items-center gap-5 sm:gap-5">
               {navItems.map((item) => {
                 const isActive = location.pathname === item.path;
                 return (

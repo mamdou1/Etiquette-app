@@ -5,6 +5,7 @@ import {
   createAgence,
   updateAgence,
   deleteAgence,
+  deleteAgencePermanent,
 } from "../services/agenceService";
 
 interface AgenceManagerProps {
@@ -18,6 +19,8 @@ const AgenceManager: React.FC<AgenceManagerProps> = ({ onSelect, selectedId }) =
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [agenceToDelete, setAgenceToDelete] = useState<Agence | null>(null);
   const [editingAgence, setEditingAgence] = useState<Agence | null>(null);
   const [formData, setFormData] = useState({
     nom: "",
@@ -51,7 +54,11 @@ const AgenceManager: React.FC<AgenceManagerProps> = ({ onSelect, selectedId }) =
     try {
       setError("");
       setSuccess("");
-      const agence = await createAgence(formData.nom, formData.code);
+      
+      // ✅ Si code vide, utiliser le nom comme code
+      const code = formData.code.trim() || formData.nom.toUpperCase();
+      
+      const agence = await createAgence(formData.nom, code);
       setSuccess(`✅ Agence "${agence.nom}" créée avec succès !`);
       await loadAgences();
       closeModal();
@@ -66,9 +73,13 @@ const AgenceManager: React.FC<AgenceManagerProps> = ({ onSelect, selectedId }) =
     try {
       setError("");
       setSuccess("");
+      
+      // ✅ Si code vide, utiliser le nom comme code
+      const code = formData.code.trim() || formData.nom.toUpperCase();
+      
       const agence = await updateAgence(editingAgence.id, {
         nom: formData.nom,
-        code: formData.code,
+        code: code,
       });
       setSuccess(`✅ Agence "${agence.nom}" mise à jour avec succès !`);
       await loadAgences();
@@ -78,18 +89,36 @@ const AgenceManager: React.FC<AgenceManagerProps> = ({ onSelect, selectedId }) =
     }
   };
 
-  const handleDelete = async (id: number, nom: string) => {
-    if (!window.confirm(`Voulez-vous vraiment désactiver l'agence "${nom}" ?`)) return;
+  const handleDelete = async () => {
+    if (!agenceToDelete?.id) return;
     try {
       setError("");
       setSuccess("");
-      const success = await deleteAgence(id);
+      const success = await deleteAgence(agenceToDelete.id);
       if (success) {
-        setSuccess(`✅ Agence "${nom}" désactivée avec succès !`);
+        setSuccess(`✅ Agence "${agenceToDelete.nom}" désactivée avec succès !`);
         await loadAgences();
       }
+      closeDeleteModal();
     } catch (err: any) {
       setError(err.response?.data?.message || "Erreur lors de la suppression");
+    }
+  };
+
+  const handleDeletePermanent = async () => {
+    if (!agenceToDelete?.id) return;
+    if (!window.confirm(`⚠️ Voulez-vous vraiment supprimer DÉFINITIVEMENT l'agence "${agenceToDelete.nom}" ? Cette action est irréversible !`)) return;
+    try {
+      setError("");
+      setSuccess("");
+      const success = await deleteAgencePermanent(agenceToDelete.id);
+      if (success) {
+        setSuccess(`✅ Agence "${agenceToDelete.nom}" supprimée définitivement !`);
+        await loadAgences();
+      }
+      closeDeleteModal();
+    } catch (err: any) {
+      setError(err.response?.data?.message || "Erreur lors de la suppression définitive");
     }
   };
 
@@ -99,7 +128,7 @@ const AgenceManager: React.FC<AgenceManagerProps> = ({ onSelect, selectedId }) =
       setEditingAgence(agence);
       setFormData({
         nom: agence.nom,
-        code: agence.code,
+        code: agence.code || "",
       });
     } else {
       setEditingAgence(null);
@@ -118,6 +147,16 @@ const AgenceManager: React.FC<AgenceManagerProps> = ({ onSelect, selectedId }) =
     setEditingAgence(null);
     setFormData({ nom: "", code: "" });
     setError("");
+  };
+
+  const openDeleteModal = (agence: Agence) => {
+    setAgenceToDelete(agence);
+    setIsDeleteModalOpen(true);
+  };
+
+  const closeDeleteModal = () => {
+    setIsDeleteModalOpen(false);
+    setAgenceToDelete(null);
   };
 
   // ─── Rendu ──────────────────────────────────────────────────
@@ -175,7 +214,7 @@ const AgenceManager: React.FC<AgenceManagerProps> = ({ onSelect, selectedId }) =
         <table className="w-full text-sm border-collapse">
           <thead>
             <tr className="bg-surface border-b-2 border-border">
-              <th className="px-4 py-3 text-left font-mono text-[10px] text-muted uppercase tracking-wider">ID</th>
+              {/* <th className="px-4 py-3 text-left font-mono text-[10px] text-muted uppercase tracking-wider">ID</th> */}
               <th className="px-4 py-3 text-left font-mono text-[10px] text-muted uppercase tracking-wider">Code</th>
               <th className="px-4 py-3 text-left font-mono text-[10px] text-muted uppercase tracking-wider">Nom</th>
               <th className="px-4 py-3 text-left font-mono text-[10px] text-muted uppercase tracking-wider">Statut</th>
@@ -184,7 +223,7 @@ const AgenceManager: React.FC<AgenceManagerProps> = ({ onSelect, selectedId }) =
             </tr>
           </thead>
           <tbody>
-            {agences.map((agence, index) => (
+            {agences.map((agence) => (
               <tr 
                 key={agence.id} 
                 className={`border-b border-border hover:bg-surface/50 transition-colors ${
@@ -192,8 +231,10 @@ const AgenceManager: React.FC<AgenceManagerProps> = ({ onSelect, selectedId }) =
                 }`}
                 onClick={() => onSelect?.(agence)}
               >
-                <td className="px-4 py-3 font-mono text-xs text-muted">{agence.id}</td>
-                <td className="px-4 py-3 font-mono text-xs font-bold text-accent">{agence.code}</td>
+                {/* <td className="px-4 py-3 font-mono text-xs text-muted">{agence.id}</td> */}
+                <td className="px-4 py-3 font-mono text-xs font-bold text-accent">
+                  {agence.code || "—"}
+                </td>
                 <td className="px-4 py-3 font-medium">{agence.nom}</td>
                 <td className="px-4 py-3">
                   <span
@@ -210,19 +251,28 @@ const AgenceManager: React.FC<AgenceManagerProps> = ({ onSelect, selectedId }) =
                   {agence.created_at ? new Date(agence.created_at).toLocaleDateString("fr-FR") : "—"}
                 </td>
                 <td className="px-4 py-3">
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 flex-wrap">
                     <button
                       onClick={(e) => { e.stopPropagation(); openModal(agence); }}
                       className="text-blue-600 hover:text-blue-800 text-xs font-mono px-2 py-1 rounded hover:bg-blue-50 transition-colors"
                     >
                       ✏️ Modifier
                     </button>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); handleDelete(agence.id!, agence.nom); }}
-                      className="text-red-600 hover:text-red-800 text-xs font-mono px-2 py-1 rounded hover:bg-red-50 transition-colors"
-                    >
-                      🗑️ Désactiver
-                    </button>
+                    {agence.active ? (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); openDeleteModal(agence); }}
+                        className="text-red-600 hover:text-red-800 text-xs font-mono px-2 py-1 rounded hover:bg-red-50 transition-colors"
+                      >
+                        🗑️ Désactiver
+                      </button>
+                    ) : (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); openDeleteModal(agence); }}
+                        className="text-red-600 hover:text-red-800 text-xs font-mono px-2 py-1 rounded hover:bg-red-50 transition-colors"
+                      >
+                        🗑️ Supprimer
+                      </button>
+                    )}
                   </div>
                 </td>
               </tr>
@@ -251,7 +301,7 @@ const AgenceManager: React.FC<AgenceManagerProps> = ({ onSelect, selectedId }) =
         )}
       </div>
 
-      {/* ─── MODAL ────────────────────────────────────────────── */}
+      {/* ─── MODAL DE CRÉATION/ÉDITION ────────────────────────── */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={closeModal}>
           <div className="bg-white rounded-lg p-6 max-w-md w-full max-h-screen overflow-y-auto shadow-xl" onClick={(e) => e.stopPropagation()}>
@@ -268,16 +318,14 @@ const AgenceManager: React.FC<AgenceManagerProps> = ({ onSelect, selectedId }) =
               <div className="space-y-4">
                 <div>
                   <label className="block font-mono text-xs text-muted mb-1 font-semibold">
-                    Code * <span className="text-accent">(ex: DGEI)</span>
+                    Code <span className="text-accent">(optionnel - laissé vide = prend le nom)</span>
                   </label>
                   <input
                     type="text"
                     value={formData.code}
                     onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
                     className="w-full border border-border px-4 py-2.5 rounded focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/20 transition-all font-mono text-sm uppercase"
-                    placeholder="CODE"
-                    required
-                    autoFocus
+                    placeholder="CODE (ex: DGEI)"
                   />
                 </div>
 
@@ -318,6 +366,52 @@ const AgenceManager: React.FC<AgenceManagerProps> = ({ onSelect, selectedId }) =
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ─── MODAL DE SUPPRESSION ────────────────────────────── */}
+      {isDeleteModalOpen && agenceToDelete && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={closeDeleteModal}>
+          <div className="bg-white rounded-lg p-6 max-w-md w-full shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-red-600">
+                {agenceToDelete.active ? "🗑️ Désactiver l'agence" : "🗑️ Supprimer l'agence"}
+              </h3>
+              <button onClick={closeDeleteModal} className="text-muted hover:text-primary text-xl">
+                ✕
+              </button>
+            </div>
+
+            <p className="text-sm text-muted mb-2">
+              {agenceToDelete.active 
+                ? `Voulez-vous désactiver l'agence "${agenceToDelete.nom}" ?`
+                : `Voulez-vous supprimer définitivement l'agence "${agenceToDelete.nom}" ? Cette action est irréversible !`
+              }
+            </p>
+
+            <div className="mt-4 p-3 bg-surface rounded border border-border">
+              <p className="text-xs font-mono">
+                <strong>ID:</strong> {agenceToDelete.id}<br />
+                <strong>Code:</strong> {agenceToDelete.code || "—"}<br />
+                <strong>Nom:</strong> {agenceToDelete.nom}
+              </p>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={agenceToDelete.active ? handleDelete : handleDeletePermanent}
+                className="flex-1 bg-red-600 hover:bg-red-700 text-white py-2.5 rounded font-mono text-sm transition-colors flex items-center justify-center gap-2"
+              >
+                {agenceToDelete.active ? "🗑️ Désactiver" : "🗑️ Supprimer"}
+              </button>
+              <button
+                onClick={closeDeleteModal}
+                className="flex-1 bg-surface hover:bg-border text-primary py-2.5 rounded font-mono text-sm transition-colors"
+              >
+                Annuler
+              </button>
+            </div>
           </div>
         </div>
       )}

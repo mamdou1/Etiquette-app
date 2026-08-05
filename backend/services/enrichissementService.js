@@ -1,6 +1,7 @@
 const { AgenceModel, BoiteModel, ArchiveModel } = require("../models");
 
 const enrichirEtStocker = async (records) => {
+  console.log(`📥 enrichirEtStocker: ${records.length} enregistrements reçus`);
   const result = [];
   const agenceTrouvees = [];
   const nouvellesAgences = [];
@@ -121,7 +122,52 @@ const enrichirEtStocker = async (records) => {
     }
   }
 
+  console.log(`📦 ${archivesToSave.length} archives préparées pour sauvegarde`);
+  
+  if (archivesToSave.length > 0) {
+    console.log("📋 Premier élément avant groupage:", JSON.stringify(archivesToSave[0], null, 2));
+    
+    // ─── GROUPER PAR NUMERO_DE_BOITE (comme pour les étiquettes) ───
+    const grouped = new Map();
+    for (const arch of archivesToSave) {
+      const key = arch.numero_boite;
+      if (!grouped.has(key)) grouped.set(key, []);
+      grouped.get(key).push(arch);
+    }
+    
+    const mergedArchives = [];
+    for (const [boite, entries] of grouped) {
+      const base = { ...entries[0] };
+      
+      // Fusionner les champs (comme mergeRecords du frontend)
+      const caissiersSet = [...new Set(entries.map(e => e.caissiers).filter(Boolean))];
+      const typesSet = [...new Set(entries.map(e => e.type_document).filter(Boolean))];
+      const anneesSet = [...new Set(entries.map(e => e.annee).filter(Boolean))];
+      const obsSet = [...new Set(entries.map(e => e.observation).filter(Boolean))];
+      
+      base.caissiers = caissiersSet.join(", ");
+      base.type_document = typesSet.join(", ");
+      base.annee = anneesSet.join(", ");
+      base.observation = obsSet.join(" | ");
+      
+      mergedArchives.push(base);
+    }
+    
+    console.log(`📦 Regroupement: ${archivesToSave.length} lignes → ${mergedArchives.length} boîte(s)`);
+    
+    const savedCount = await ArchiveModel.saveMany(mergedArchives);
+    console.log(`✅ ${savedCount} archives sauvegardées dans la base`);
+
+    return {
+      enriched: result,
+      savedCount,
+      agenceTrouvees,
+      nouvellesAgences,
+    };
+  }
+
   const savedCount = await ArchiveModel.saveMany(archivesToSave);
+  console.log(`✅ ${savedCount} archives sauvegardées dans la base`);
 
   return {
     enriched: result,
