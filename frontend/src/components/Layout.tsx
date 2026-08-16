@@ -1,5 +1,6 @@
 import React from "react";
 import { Link, useLocation } from "react-router-dom";
+import { useAuth } from "../contexts/AuthContext";
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -7,11 +8,13 @@ interface LayoutProps {
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   const location = useLocation();
+  const { user, logout } = useAuth();
 
   const navItems = [
     { path: "/", label: "🏷️ Étiquettes" },
     { path: "/agences", label: " Agences", icon: "🏢" },
     { path: "/recherche", label: " Recherche", icon: "🔍" },
+    ...(user?.role === "admin" ? [{ path: "/utilisateurs", label: " Utilisateurs", icon: "👥" }] : []),
   ];
 
   return (
@@ -59,8 +62,12 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               <span className="text-white/40 text-xs font-mono hidden md:inline">
                 {new Date().toLocaleDateString("fr-FR")}
               </span>
+              <div className="hidden sm:block text-right leading-tight">
+                <p className="text-xs font-mono">{user?.nom}</p>
+                <button onClick={logout} className="text-[10px] font-mono text-white/50 hover:text-white">Déconnexion</button>
+              </div>
               <div className="w-8 h-8 rounded-full bg-accent/30 flex items-center justify-center text-sm font-mono font-bold">
-                A
+                {user?.nom?.charAt(0).toUpperCase() || "U"}
               </div>
             </div>
           </div>

@@ -85,6 +85,34 @@ const initDatabase = async () => {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
 
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        nom VARCHAR(100) NOT NULL,
+        email VARCHAR(150) NOT NULL UNIQUE,
+        password_hash VARCHAR(255) NOT NULL,
+        role VARCHAR(20) NOT NULL DEFAULT 'user',
+        active BOOLEAN NOT NULL DEFAULT TRUE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_users_email (email)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+
+    const [userActiveColumn] = await connection.query(
+      `SELECT 1 FROM information_schema.columns
+       WHERE table_schema = DATABASE() AND table_name = 'users' AND column_name = 'active' LIMIT 1`
+    );
+    if (userActiveColumn.length === 0) {
+      await connection.query("ALTER TABLE users ADD COLUMN active BOOLEAN NOT NULL DEFAULT TRUE AFTER role");
+    }
+    // Pour les installations créées avant la gestion des rôles, le premier
+    // compte devient administrateur afin d'éviter de bloquer l'administration.
+    const [[adminCount]] = await connection.query("SELECT COUNT(*) AS total FROM users WHERE role = 'admin'");
+    if (adminCount.total === 0) {
+      await connection.query("UPDATE users SET role = 'admin' ORDER BY id ASC LIMIT 1");
+    }
+
     // Les anciens imports peuvent déjà contenir des doublons. On garde la
     // première ligne enregistrée pour chaque numéro de boîte, puis on rend ce
     // numéro unique afin que les réimports ne recréent plus de doublons.
