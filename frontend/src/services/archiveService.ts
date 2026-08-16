@@ -91,6 +91,8 @@ export const getArchivesGrouped = async (params?: {
   annee?: string; 
   agence_nom?: string;
   numero_boite?: string;
+  date_debut?: string;
+  date_fin?: string;
 }): Promise<GroupedResponse> => {
   const response = await axios.get<GroupedResponse>(`${API_URL}/archives/grouped`, { params });
   return response.data;

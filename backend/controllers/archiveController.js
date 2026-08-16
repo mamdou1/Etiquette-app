@@ -135,7 +135,7 @@ const deleteAllArchives = async (req, res) => {
 // ─── GET /api/archives/grouped ──────────────────────────────
 const getArchivesGrouped = async (req, res) => {
   try {
-    const { type_document, annee, agence_nom, numero_boite } = req.query;
+    const { type_document, annee, agence_nom, numero_boite, date_debut, date_fin } = req.query;
     
     let query = `
       SELECT 
@@ -171,6 +171,14 @@ const getArchivesGrouped = async (req, res) => {
     if (numero_boite) {
       query += " AND numero_boite LIKE ?";
       values.push(`%${numero_boite}%`);
+    }
+    if (date_debut) {
+      query += " AND STR_TO_DATE(date_production, '%d/%m/%Y') >= ?";
+      values.push(date_debut);
+    }
+    if (date_fin) {
+      query += " AND STR_TO_DATE(date_production, '%d/%m/%Y') <= ?";
+      values.push(date_fin);
     }
     
     query += `

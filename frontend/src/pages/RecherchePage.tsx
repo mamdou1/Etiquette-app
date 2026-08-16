@@ -25,6 +25,8 @@ const RecherchePage: React.FC = () => {
     annee: "",
     agence_nom: "",
     numero_boite: "",
+    date_debut: "",
+    date_fin: "",
   });
 
   useEffect(() => {
@@ -103,7 +105,7 @@ const RecherchePage: React.FC = () => {
   };
 
   const resetFilters = () => {
-    setFilters({ type_document: "", annee: "", agence_nom: "", numero_boite: "" });
+    setFilters({ type_document: "", annee: "", agence_nom: "", numero_boite: "", date_debut: "", date_fin: "" });
     setArchives([]);
     setSuccess("");
     setError("");
@@ -125,7 +127,7 @@ const RecherchePage: React.FC = () => {
       {/* Barre de recherche */}
       <div className="bg-white rounded-lg shadow-sm p-6 mb-6 border border-border">
         <form onSubmit={handleSearch} className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <div>
               <label className="block font-mono text-xs text-muted mb-1 font-semibold">Type de document</label>
               <select
@@ -138,6 +140,24 @@ const RecherchePage: React.FC = () => {
                   <option key={type} value={type}>{type}</option>
                 ))}
               </select>
+            </div>
+            <div>
+              <label className="block font-mono text-xs text-muted mb-1 font-semibold">Date de début</label>
+              <input
+                type="date"
+                value={filters.date_debut}
+                onChange={(e) => setFilters({ ...filters, date_debut: e.target.value })}
+                className="w-full border border-border px-3 py-2 rounded focus:outline-none focus:border-accent font-mono text-sm"
+              />
+            </div>
+            <div>
+              <label className="block font-mono text-xs text-muted mb-1 font-semibold">Date de fin</label>
+              <input
+                type="date"
+                value={filters.date_fin}
+                onChange={(e) => setFilters({ ...filters, date_fin: e.target.value })}
+                className="w-full border border-border px-3 py-2 rounded focus:outline-none focus:border-accent font-mono text-sm"
+              />
             </div>
             <div>
               <label className="block font-mono text-xs text-muted mb-1 font-semibold">Année</label>
