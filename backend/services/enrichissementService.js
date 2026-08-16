@@ -1,293 +1,131 @@
 const { AgenceModel, BoiteModel, ArchiveModel } = require("../models");
 
-const enrichirEtStocker = async (records) => {
-  console.log(`📥 enrichirEtStocker: ${records.length} enregistrements reçus`);
-  const result = [];
-  const agenceTrouvees = [];
-  const nouvellesAgences = [];
-  const archivesToSave = [];
-
-  for (const record of records) {
-    // ✅ Trouver l'agence UNIQUEMENT par le champ "Nom de l'Agence"
-    const agenceNom = findAgenceField(record);
-    
-    if (agenceNom) {
-      const agenceNomTronque = String(agenceNom).substring(0, 100);
-      
-      // Vérifier si c'est un nom de caissier (pour éviter les erreurs)
-      if (isCaissierName(agenceNomTronque, record)) {
-        // Si c'est un caissier, ne pas créer d'agence
-        const boxNumber = getBoxNumber(record);
-        result.push({ 
-          ...record, 
-          "Source": "Fichier uploadé (nom détecté comme caissier)" 
-        });
-        archivesToSave.push({
-          numero_boite: String(boxNumber).substring(0, 50),
-          agence_id: 0,
-          agence_nom: "Sans agence",
-          date_production: String(record["Date de Production"] || "").substring(0, 20),
-          type_document: String(record["Type de Document"] || "").substring(0, 100),
-          caissiers: String(record["Nom des caissiers"] || "").substring(0, 255),
-          annee: String(record["Année"] || "").substring(0, 10),
-          observation: String(record["Observation"] || "").substring(0, 255),
-          source: "upload_sans_agence",
-        });
-        continue;
-      }
-
-      let agence = await AgenceModel.findOrCreate(agenceNomTronque);
-      
-      const isNew = agence.created_at && new Date(agence.created_at).getTime() > Date.now() - 5000;
-      if (isNew) {
-        nouvellesAgences.push(agenceNomTronque);
-      } else {
-        agenceTrouvees.push(agenceNomTronque);
-      }
-
-      const boites = await BoiteModel.findByAgenceNom(agenceNomTronque);
-      
-      if (boites.length > 0) {
-        for (const boite of boites) {
-          const ligne = {
-            "N° de la Boite": boite.numero || "",
-            "Date de Production": boite.date_production || "",
-            "Type de Document": boite.type_document || "",
-            "Nom des caissiers": boite.caissiers || "",
-            "Nom de l'Agence": agenceNomTronque,
-            "Année": boite.annee || "",
-            "Observation": boite.observation || "",
-            "Source": "Base de données",
-          };
-          result.push(ligne);
-          
-          archivesToSave.push({
-            numero_boite: boite.numero || "",
-            agence_id: agence.id,
-            agence_nom: agenceNomTronque,
-            date_production: boite.date_production || "",
-            type_document: boite.type_document || "",
-            caissiers: boite.caissiers || "",
-            annee: boite.annee || "",
-            observation: boite.observation || "",
-            source: "base_donnees",
-          });
-        }
-      } else {
-        const boxNumber = getBoxNumber(record);
-        
-        const boiteData = {
-          numero: String(boxNumber).substring(0, 50),
-          agence_id: agence.id,
-          date_production: String(record["Date de Production"] || "").substring(0, 20),
-          type_document: String(record["Type de Document"] || "").substring(0, 100),
-          caissiers: String(record["Nom des caissiers"] || "").substring(0, 255),
-          annee: String(record["Année"] || "").substring(0, 10),
-          observation: String(record["Observation"] || "").substring(0, 255),
-        };
-        await BoiteModel.upsert(boiteData);
-        
-        const ligne = { 
-          ...record, 
-          "Source": "Nouvelle agence créée" 
-        };
-        result.push(ligne);
-        
-        archivesToSave.push({
-          numero_boite: String(boxNumber).substring(0, 50),
-          agence_id: agence.id,
-          agence_nom: agenceNomTronque,
-          date_production: String(record["Date de Production"] || "").substring(0, 20),
-          type_document: String(record["Type de Document"] || "").substring(0, 100),
-          caissiers: String(record["Nom des caissiers"] || "").substring(0, 255),
-          annee: String(record["Année"] || "").substring(0, 10),
-          observation: String(record["Observation"] || "").substring(0, 255),
-          source: "upload",
-        });
-      }
-    } else {
-      const boxNumber = getBoxNumber(record);
-      result.push({ ...record, "Source": "Fichier uploadé (sans agence)" });
-      archivesToSave.push({
-        numero_boite: String(boxNumber).substring(0, 50),
-        agence_id: 0,
-        agence_nom: "Sans agence",
-        date_production: String(record["Date de Production"] || "").substring(0, 20),
-        type_document: String(record["Type de Document"] || "").substring(0, 100),
-        caissiers: String(record["Nom des caissiers"] || "").substring(0, 255),
-        annee: String(record["Année"] || "").substring(0, 10),
-        observation: String(record["Observation"] || "").substring(0, 255),
-        source: "upload_sans_agence",
-      });
-    }
-  }
-
-  console.log(`📦 ${archivesToSave.length} archives préparées pour sauvegarde`);
-  
-  if (archivesToSave.length > 0) {
-    console.log("📋 Premier élément avant groupage:", JSON.stringify(archivesToSave[0], null, 2));
-    
-    // ─── GROUPER PAR NUMERO_DE_BOITE (comme pour les étiquettes) ───
-    const grouped = new Map();
-    for (const arch of archivesToSave) {
-      const key = arch.numero_boite;
-      if (!grouped.has(key)) grouped.set(key, []);
-      grouped.get(key).push(arch);
-    }
-    
-    const mergedArchives = [];
-    for (const [boite, entries] of grouped) {
-      const base = { ...entries[0] };
-      
-      // Fusionner les champs (comme mergeRecords du frontend)
-      const caissiersSet = [...new Set(entries.map(e => e.caissiers).filter(Boolean))];
-      const typesSet = [...new Set(entries.map(e => e.type_document).filter(Boolean))];
-      const anneesSet = [...new Set(entries.map(e => e.annee).filter(Boolean))];
-      const obsSet = [...new Set(entries.map(e => e.observation).filter(Boolean))];
-      
-      base.caissiers = caissiersSet.join(", ");
-      base.type_document = typesSet.join(", ");
-      base.annee = anneesSet.join(", ");
-      base.observation = obsSet.join(" | ");
-      
-      mergedArchives.push(base);
-    }
-    
-    console.log(`📦 Regroupement: ${archivesToSave.length} lignes → ${mergedArchives.length} boîte(s)`);
-    
-    const savedCount = await ArchiveModel.saveMany(mergedArchives);
-    console.log(`✅ ${savedCount} archives sauvegardées dans la base`);
-
-    return {
-      enriched: result,
-      savedCount,
-      agenceTrouvees,
-      nouvellesAgences,
-    };
-  }
-
-  const savedCount = await ArchiveModel.saveMany(archivesToSave);
-  console.log(`✅ ${savedCount} archives sauvegardées dans la base`);
-
-  return {
-    enriched: result,
-    savedCount,
-    agenceTrouvees,
-    nouvellesAgences,
-  };
+const FIELD_ALIASES = {
+  box: ["n de la boite", "numero de boite", "numero boite", "numero box", "box", "boite", "boxnumber"],
+  date: ["date de production", "date production"],
+  type: ["type de document", "type document"],
+  caissiers: ["nom des caissiers", "caissiers", "caissier"],
+  agence: ["nom de l agence", "nom agence", "agence"],
+  annee: ["annee", "annees"],
+  observation: ["observation", "observations"],
 };
 
-// ─── HELPERS ───────────────────────────────────────────────────
-
-/**
- * ✅ Trouver le champ "Agence" UNIQUEMENT
- * Ne cherche que les champs qui contiennent "Agence" ou "agence"
- */
-function findAgenceField(record) {
-  // ✅ Clés EXACTES pour l'agence
-  const agenceKeys = [
-    "Nom de l'Agence",
-    "Nom de l' Agence", 
-    "Agence",
-    "agence",
-    "NomAgence",
-    "NOM_AGENCE",
-    "nom_agence",
-    "Nom Agence",
-    "AGENCE",
-    "Nom Agence",
-  ];
-
-  // ✅ Chercher d'abord dans les clés exactes
-  for (const key of agenceKeys) {
-    if (record[key] !== undefined && record[key] !== null) {
-      const value = String(record[key]).trim();
-      if (value && value.length > 0) {
-        return value;
-      }
-    }
-  }
-
-  // ✅ Chercher dans les clés qui contiennent "agence" (mais pas "caissier")
-  for (const key of Object.keys(record)) {
-    const normalizedKey = key
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .toLowerCase();
-    
-    // ✅ UNIQUEMENT si la clé contient "agence" et ne contient pas "caissier"
-    if (normalizedKey.includes("agence") && !normalizedKey.includes("caissier")) {
-      const value = String(record[key]).trim();
-      if (value && value.length > 0) {
-        return value;
-      }
-    }
-  }
-
-  return null;
+function normalizeHeader(value) {
+  return String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
-/**
- * ✅ Vérifie si un nom est probablement un caissier
- */
-function isCaissierName(name, record) {
-  // Si le nom est déjà dans la liste des caissiers
-  const caissiersField = record["Nom des caissiers"] || record["Caissiers"] || "";
-  if (caissiersField) {
-    const caissiersList = String(caissiersField).split(/[,;]/).map(c => c.trim().toLowerCase());
-    const nameLower = name.toLowerCase();
-    if (caissiersList.some(c => c.includes(nameLower) || nameLower.includes(c))) {
-      return true;
+function getRecordValue(record, aliases) {
+  for (const [key, value] of Object.entries(record)) {
+    const normalizedKey = normalizeHeader(key);
+    if (aliases.includes(normalizedKey) && String(value ?? "").trim()) {
+      return String(value).trim();
     }
   }
-
-  // Si le nom est court (moins de 3 caractères) ce n'est pas une agence
-  if (name.length < 3) {
-    return true;
-  }
-
-  // Liste des noms connus d'agences
-  const knownAgences = ["DGEI", "DGI", "DNCC", "DNP", "DGD", "DRH", "DMP", "DCP"];
-  if (knownAgences.some(a => a.toLowerCase() === name.toLowerCase())) {
-    return false; // C'est une vraie agence
-  }
-
-  // Si le nom contient un prénom (probablement un caissier)
-  const commonFirstNames = [
-    "amadou", "boubacar", "djénéba", "yousouf", "abdoulaye", 
-    "moussa", "fatoumata", "mariam", "soumaila", "ibrahima",
-    "oumar", "sidi", "hawa", "aminata", "kadiatou"
-  ];
-  if (commonFirstNames.some(n => name.toLowerCase().includes(n))) {
-    return true;
-  }
-
-  // Par défaut, considérer comme agence
-  return false;
+  return "";
 }
 
 function getBoxNumber(record) {
-  const possibleKeys = [
-    "N° de la Boite",
-    "N° de la Boîte",
-    "Numéro Boîte",
-    "Numero Boite",
-    "Box",
-    "Boîte",
-    "Boite",
-    "boxNumber",
-  ];
+  const exactMatch = getRecordValue(record, FIELD_ALIASES.box);
+  if (exactMatch) return exactMatch;
 
-  for (const key of possibleKeys) {
-    if (record[key] !== undefined && record[key] !== null) {
-      const value = String(record[key]).trim();
-      if (value) {
-        return value;
-      }
+  for (const [key, value] of Object.entries(record)) {
+    const normalizedKey = normalizeHeader(key);
+    if ((normalizedKey.includes("boite") || normalizedKey.includes("box")) && String(value ?? "").trim()) {
+      return String(value).trim();
     }
   }
 
-  return `BOX-${Date.now()}`;
+  return "";
 }
+
+function mergeArchivesByBox(archives) {
+  const grouped = new Map();
+  for (const archive of archives) {
+    if (!grouped.has(archive.numero_boite)) grouped.set(archive.numero_boite, []);
+    grouped.get(archive.numero_boite).push(archive);
+  }
+
+  return Array.from(grouped.values()).map((entries) => {
+    const merged = { ...entries[0] };
+    for (const field of ["caissiers", "type_document", "annee", "observation"]) {
+      const separator = field === "observation" ? " | " : ", ";
+      merged[field] = [...new Set(entries.map((entry) => entry[field]).filter(Boolean))].join(separator);
+    }
+    return merged;
+  });
+}
+
+const enrichirEtStocker = async (records) => {
+  console.log(`📥 enrichirEtStocker: ${records.length} lignes reçues`);
+
+  const agencyCache = new Map();
+  const agenceTrouvees = new Set();
+  const nouvellesAgences = new Set();
+  const enriched = [];
+  const archivesToSave = [];
+
+  for (const record of records) {
+    const boxNumber = getBoxNumber(record);
+    if (!boxNumber) {
+      console.warn("⚠️ Ligne ignorée : numéro de boîte introuvable", record);
+      continue;
+    }
+
+    const agenceNom = getRecordValue(record, FIELD_ALIASES.agence) || "Sans agence";
+    let agence = agencyCache.get(agenceNom);
+    if (!agence) {
+      const existing = await AgenceModel.findByNom(agenceNom);
+      agence = existing || await AgenceModel.findOrCreate(agenceNom);
+      agencyCache.set(agenceNom, agence);
+      (existing ? agenceTrouvees : nouvellesAgences).add(agenceNom);
+    }
+
+    const archive = {
+      numero_boite: boxNumber.substring(0, 50),
+      agence_id: agence.id,
+      agence_nom: agenceNom.substring(0, 100),
+      date_production: getRecordValue(record, FIELD_ALIASES.date).substring(0, 20),
+      type_document: getRecordValue(record, FIELD_ALIASES.type).substring(0, 100),
+      caissiers: getRecordValue(record, FIELD_ALIASES.caissiers).substring(0, 255),
+      annee: getRecordValue(record, FIELD_ALIASES.annee).substring(0, 10),
+      observation: getRecordValue(record, FIELD_ALIASES.observation).substring(0, 255),
+      source: "upload",
+    };
+
+    // Le premier import est conservé comme référence, y compris dans boites.
+    const existingBox = await BoiteModel.findByNumero(archive.numero_boite);
+    if (!existingBox) {
+      await BoiteModel.create({
+        numero: archive.numero_boite,
+        agence_id: archive.agence_id,
+        date_production: archive.date_production,
+        type_document: archive.type_document,
+        caissiers: archive.caissiers,
+        annee: archive.annee,
+        observation: archive.observation,
+      });
+    }
+
+    archivesToSave.push(archive);
+    enriched.push({ ...record, Source: "Fichier uploadé" });
+  }
+
+  const uniqueArchives = mergeArchivesByBox(archivesToSave);
+  console.log(`📦 ${records.length} lignes → ${uniqueArchives.length} boîte(s) unique(s)`);
+  const savedCount = await ArchiveModel.saveMany(uniqueArchives);
+
+  return {
+    enriched,
+    savedCount,
+    agenceTrouvees: [...agenceTrouvees],
+    nouvellesAgences: [...nouvellesAgences],
+  };
+};
 
 module.exports = { enrichirEtStocker };

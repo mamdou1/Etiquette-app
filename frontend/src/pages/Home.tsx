@@ -63,6 +63,21 @@ function recordMatchesFilters(record: LabelRecord, filters: FieldFilters) {
   });
 }
 
+function isYearField(field: string) {
+  const normalized = normalizeText(field);
+  return normalized === "annee" || normalized === "annees" || normalized.includes("annee");
+}
+
+function recordMatchesYears(record: LabelRecord, yearFields: string[], selectedYears: string[]) {
+  if (selectedYears.length === 0 || yearFields.length === 0) return true;
+  return yearFields.some((field) =>
+    String(record[field] ?? "")
+      .split(/[,;|]/)
+      .map((year) => year.trim())
+      .some((year) => selectedYears.includes(year)),
+  );
+}
+
 // ─── Parsing Excel → Regroupement par boîte ──────────────────
 
 function cleanCellValue(header: string, value: unknown): string {
@@ -182,7 +197,7 @@ function groupByBox(records: LabelRecord[], boxField: string): BoxGroup[] {
     .sort((a, b) => a.boxNumber.localeCompare(b.boxNumber, undefined, { numeric: true }));
 }
 
-function parseExcelToBoxes(file: File): Promise<{ filename: string; boxes: BoxGroup[]; fields: string[]; boxKey: string }> {
+function parseExcelToBoxes(file: File): Promise<{ filename: string; boxes: BoxGroup[]; records: LabelRecord[]; fields: string[]; boxKey: string }> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -231,7 +246,7 @@ function parseExcelToBoxes(file: File): Promise<{ filename: string; boxes: BoxGr
         const boxKey = detectBoxField(headers, records);
         const boxes = groupByBox(records, boxKey);
 
-        resolve({ filename: file.name, boxes, fields: headers, boxKey });
+        resolve({ filename: file.name, boxes, records, fields: headers, boxKey });
       } catch (err: any) {
         reject(err);
       }
@@ -245,6 +260,7 @@ function parseExcelToBoxes(file: File): Promise<{ filename: string; boxes: BoxGr
 
 const Home: React.FC = () => {
   const [boxes, setBoxes] = useState<BoxGroup[]>([]);
+  const [rawRecords, setRawRecords] = useState<LabelRecord[]>([]);
   const [fields, setFields] = useState<string[]>([]);
   const [visibleFields, setVisibleFields] = useState<string[]>([]);
   const [cols, setCols] = useState<ColumnCount>(2);
@@ -256,12 +272,23 @@ const Home: React.FC = () => {
   const [boxField, setBoxField] = useState<string>("");
   const [enrichedInfo, setEnrichedInfo] = useState<{ original: number; saved: number } | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [selectedYears, setSelectedYears] = useState<string[]>([]);
 
-  const allRecords = useMemo(() => boxes.flatMap((b) => b.records), [boxes]);
+  // On conserve les lignes d'origine : les filtres (notamment les années)
+  // doivent être appliqués avant de fusionner les données d'une même boîte.
+  const allRecords = rawRecords;
+  const yearFields = useMemo(() => fields.filter(isYearField), [fields]);
+  const availableYears = useMemo(() => [...new Set(
+    allRecords.flatMap((record) => yearFields.flatMap((field) =>
+      String(record[field] ?? "").split(/[,;|]/).map((year) => year.trim()).filter(Boolean),
+    )),
+  )].sort((a, b) => b.localeCompare(a, undefined, { numeric: true })), [allRecords, yearFields]);
 
   const filteredRecords = useMemo(
-    () => allRecords.filter((record) => recordMatchesFilters(record, filters)),
-    [allRecords, filters],
+    () => allRecords.filter((record) =>
+      recordMatchesFilters(record, filters) && recordMatchesYears(record, yearFields, selectedYears),
+    ),
+    [allRecords, filters, yearFields, selectedYears],
   );
 
   const filteredBoxes = useMemo(() => {
@@ -279,11 +306,13 @@ const Home: React.FC = () => {
       const result = await parseExcelToBoxes(file);
       
       setBoxes(result.boxes);
+      setRawRecords(result.records);
       setFields(result.fields);
       setVisibleFields(result.fields);
       setFilename(result.filename);
       setBoxField(result.boxKey);
       setFilters({});
+      setSelectedYears([]);
 
       // 2. ✅ Envoyer les données au backend pour stockage
       setUploading(true);
@@ -311,12 +340,14 @@ const Home: React.FC = () => {
 
   const reset = () => {
     setBoxes([]);
+    setRawRecords([]);
     setFields([]);
     setVisibleFields([]);
     setFilters({});
     setFilename("");
     setError("");
     setEnrichedInfo(null);
+    setSelectedYears([]);
   };
 
   const toggleField = (key: string) => {
@@ -349,6 +380,15 @@ const Home: React.FC = () => {
   };
 
   const clearFilters = () => setFilters({});
+  const toggleYear = (year: string) => {
+    setSelectedYears((previous) =>
+      previous.length === 0
+        ? availableYears.filter((availableYear) => availableYear !== year)
+        : previous.includes(year)
+          ? previous.filter((selectedYear) => selectedYear !== year)
+          : [...previous, year],
+    );
+  };
 
   const hasData = boxes.length > 0;
   const totalBoxes = filteredBoxes.length;
@@ -393,7 +433,7 @@ const Home: React.FC = () => {
                 <p className="text-sm text-green-700 font-mono">
                   ✅ Stockage terminé : 
                   <span className="font-bold"> {enrichedInfo.original}</span> ligne(s) traitées
-                  → <span className="font-bold">{enrichedInfo.saved}</span> ligne(s) sauvegardée(s) dans les archives
+                  → <span className="font-bold">{enrichedInfo.saved}</span> boîte(s) unique(s) sauvegardée(s) dans les archives
                 </p>
               </div>
             )}
@@ -405,7 +445,7 @@ const Home: React.FC = () => {
               <table className="w-full text-xs font-mono border-collapse">
                 <thead>
                   <tr className="bg-surface">
-                    {["N° de la Boite", "Date de Production", "Type de Document", "Nom des caissiers", "Nom de l'Agence", "Année", "Observation"].map((h) => (
+                    {["N° de la Boite", "Date de Production", "Type de Document", "Nom des caissiers", "Nom de l'Agence", "Année"].map((h) => (
                       <th key={h} className="border border-border px-2 py-1 text-left text-muted font-medium">
                         {h}
                       </th>
@@ -414,12 +454,12 @@ const Home: React.FC = () => {
                 </thead>
                 <tbody>
                   <tr>
-                    {["BOX-001", "08/08/2023", "Pièces de caisse", "Djénéba C.", "DGEI", "2023", "Test"].map((c, i) => (
+                    {["BOX-001", "08/08/2023", "Pièces de caisse", "Djénéba C.", "DGEI", "2023" ].map((c, i) => (
                       <td key={i} className="border border-border px-2 py-1">{c}</td>
                     ))}
                   </tr>
                   <tr>
-                    {["BOX-002", "09/08/2023", "Pièces de caisse", "Moussa D.", "DGEI", "2023", ""].map((c, i) => (
+                    {["BOX-002", "09/08/2023", "Pièces de caisse", "Moussa D.", "DGEI", "2023"].map((c, i) => (
                       <td key={i} className="border border-border px-2 py-1">{c}</td>
                     ))}
                   </tr>
@@ -447,6 +487,9 @@ const Home: React.FC = () => {
             filename={filename}
             total={totalBoxes}
             sourceTotal={boxes.length}
+            availableYears={availableYears}
+            selectedYears={selectedYears}
+            onToggleYear={toggleYear}
           />
           <PrintPreview
             boxes={filteredBoxes}

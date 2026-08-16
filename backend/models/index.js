@@ -237,8 +237,10 @@ const ArchiveModel = {
         );
       });
 
+      // L'unicité de numero_boite est garantie par la base. INSERT IGNORE
+      // conserve donc le tout premier enregistrement lors d'un réimport.
       const query = `
-      INSERT INTO archives (
+      INSERT IGNORE INTO archives (
         numero_boite, agence_id, agence_nom, date_production,
         type_document, caissiers, annee, observation, source
       ) VALUES ${placeholders}

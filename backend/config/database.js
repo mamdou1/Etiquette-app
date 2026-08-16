@@ -85,6 +85,28 @@ const initDatabase = async () => {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
 
+    // Les anciens imports peuvent déjà contenir des doublons. On garde la
+    // première ligne enregistrée pour chaque numéro de boîte, puis on rend ce
+    // numéro unique afin que les réimports ne recréent plus de doublons.
+    const [uniqueIndex] = await connection.query(
+      `SELECT 1 FROM information_schema.statistics
+       WHERE table_schema = DATABASE()
+         AND table_name = 'archives'
+         AND index_name = 'uniq_archives_numero_boite'
+       LIMIT 1`
+    );
+    if (uniqueIndex.length === 0) {
+      await connection.query(`
+        DELETE duplicate_archive FROM archives AS duplicate_archive
+        INNER JOIN archives AS first_archive
+          ON duplicate_archive.numero_boite = first_archive.numero_boite
+         AND duplicate_archive.id > first_archive.id
+      `);
+      await connection.query(
+        "ALTER TABLE archives ADD UNIQUE INDEX uniq_archives_numero_boite (numero_boite)"
+      );
+    }
+
     console.log("✅ Base de données MySQL initialisée");
     connection.release();
   } catch (error) {

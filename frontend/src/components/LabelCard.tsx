@@ -154,15 +154,15 @@ const LabelCard: React.FC<Props> = ({
   };
 
   const getLabelFontSize = () => {
-    if (fieldCount <= 2) return "text-[11px]";
-    if (fieldCount <= 4) return "text-[10px]";
-    return "text-[9px]";
+    if (fieldCount <= 2) return "text-[21px]";
+    if (fieldCount <= 4) return "text-[19px]";
+    return "text-[15px]";
   };
 
   const getValueFontSize = () => {
-    if (fieldCount <= 2) return "text-[15px]";
-    if (fieldCount <= 4) return "text-[13px]";
-    return "text-[11px]";
+    if (fieldCount <= 2) return "text-[25px]";
+    if (fieldCount <= 4) return "text-[21px]";
+    return "text-[19px]";
   };
 
   const fontSize = getFontSize();
@@ -187,7 +187,7 @@ const LabelCard: React.FC<Props> = ({
     >
       <div className="mb-2 pb-2 border-b-2 border-border flex items-center justify-between">
         <span className="font-mono font-extrabold text-primary text-xl tracking-tight">
-          {boxNumber}
+          N° de la boîte: {boxNumber}
         </span>
         <div className="flex items-center gap-2">
           {isCaissier && (
@@ -195,9 +195,6 @@ const LabelCard: React.FC<Props> = ({
               👤 Caissier
             </span>
           )}
-          <span className="bg-accent/10 text-accent text-[9px] font-mono font-medium px-2 py-0.5 rounded-full border border-accent/20">
-            {fieldCount} champs
-          </span>
         </div>
       </div>
 
@@ -215,12 +212,12 @@ const LabelCard: React.FC<Props> = ({
               >
                 <span
                   className={`text-muted font-semibold flex-shrink-0 ${labelSize}`}
-                  style={{ letterSpacing: "0.08em" }}
+                  style={{ letterSpacing: "0.09em" }}
                 >
                   {label}:
                 </span>
                 <span
-                  className={`font-medium text-primary ${valueSize}`}
+                  className={`font-extrabolt text-primary ${valueSize}`}
                   style={{ whiteSpace: "normal", wordBreak: "break-word" }}
                 >
                   {value || "—"}

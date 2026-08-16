@@ -140,8 +140,8 @@ const getArchivesGrouped = async (req, res) => {
     let query = `
       SELECT 
         numero_boite,
-        agence_id,
-        agence_nom,
+        MIN(agence_id) as agence_id,
+        GROUP_CONCAT(DISTINCT agence_nom SEPARATOR ', ') as agence_nom,
         GROUP_CONCAT(DISTINCT type_document SEPARATOR ', ') as types_documents,
         GROUP_CONCAT(DISTINCT caissiers SEPARATOR ', ') as caissiers,
         GROUP_CONCAT(DISTINCT annee SEPARATOR ', ') as annees,
@@ -174,7 +174,9 @@ const getArchivesGrouped = async (req, res) => {
     }
     
     query += `
-      GROUP BY numero_boite, agence_id, agence_nom
+      -- Une boîte est identifiée par son numéro, indépendamment du caissier
+      -- ou de l'agence associés à ses documents.
+      GROUP BY numero_boite
       ORDER BY numero_boite ASC
     `;
     

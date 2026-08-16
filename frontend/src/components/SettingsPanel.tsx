@@ -41,6 +41,9 @@ interface Props {
   filename: string;
   total: number;
   sourceTotal: number;
+  availableYears: string[];
+  selectedYears: string[];
+  onToggleYear: (year: string) => void;
 }
 
 const SettingsPanel: React.FC<Props> = ({
@@ -60,6 +63,9 @@ const SettingsPanel: React.FC<Props> = ({
   filename,
   total,
   sourceTotal,
+  availableYears,
+  selectedYears,
+  onToggleYear,
 }) => {
   const activeFilters = hasActiveFilters(filters);
   const [showFields, setShowFields] = useState(true);
@@ -137,11 +143,46 @@ const SettingsPanel: React.FC<Props> = ({
         </button>
       </div>
 
+      {availableYears.length > 1 && (
+        <div>
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <p className="font-mono text-[10px] uppercase tracking-widest text-muted">
+              02 - Années à imprimer
+            </p>
+            {selectedYears.length > 0 && (
+              <button
+                onClick={() => selectedYears.forEach(onToggleYear)}
+                className="font-mono text-[10px] text-accent hover:underline"
+              >
+                Toutes
+              </button>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {availableYears.map((year) => {
+              const selected = selectedYears.length === 0 || selectedYears.includes(year);
+              return (
+                <button
+                  key={year}
+                  onClick={() => onToggleYear(year)}
+                  className={`border px-3 py-2 font-mono text-xs transition-colors ${selected ? "border-accent bg-accent text-white" : "border-border bg-white text-muted"}`}
+                >
+                  {year}
+                </button>
+              );
+            })}
+          </div>
+          <p className="mt-2 font-mono text-[10px] text-muted">
+            {selectedYears.length === 0 ? "Toutes les années sont sélectionnées" : `${selectedYears.length} année${selectedYears.length > 1 ? "s" : ""} sélectionnée${selectedYears.length > 1 ? "s" : ""}`}
+          </p>
+        </div>
+      )}
+
       {/* ─── Section 02 : Filtres ───────────────────────────── */}
       <div>
         <div className="flex items-center justify-between gap-2 mb-3">
           <p className="font-mono text-[10px] uppercase tracking-widest text-muted">
-            02 - Filtres
+            03 - Filtres
           </p>
           {activeFilters && (
             <button
