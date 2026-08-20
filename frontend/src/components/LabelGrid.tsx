@@ -1,32 +1,54 @@
 import React from "react";
 import LabelCard from "./LabelCard";
-import { LabelRecord, LabelSize, ColumnCount } from "../types";
+import { BoxGroup, LabelSize, ColumnCount } from "../types";
 
 interface Props {
-  data: LabelRecord[];
+  boxes: BoxGroup[];
+  fields: string[];
   visibleFields: string[];
   cols: ColumnCount;
   size: LabelSize;
+  boxField: string;
 }
 
-const LabelGrid: React.FC<Props> = ({ data, visibleFields, cols, size }) => {
+const LabelGrid: React.FC<Props> = ({ boxes, fields, visibleFields, cols, size, boxField }) => {
+  const FIXED_COLS = 2;
+
   return (
     <div
       className="label-grid"
       style={{
         display: "grid",
-        gridTemplateColumns: `repeat(${cols}, 1fr)`,
-        gap: "10px",
+        gridTemplateColumns: `repeat(${FIXED_COLS}, 1fr)`,
+        gap: "16px",
+        width: "100%",
+        height: "100%",
       }}
     >
-      {data.map((record, i) => (
-        <LabelCard
-          key={i}
-          record={record}
-          visibleFields={visibleFields}
-          size={size}
-          index={i}
-        />
+      {boxes.map((box) => (
+        <div
+          key={box.boxNumber}
+          className="box-group"
+          style={{
+            breakInside: "avoid",
+            pageBreakInside: "avoid",
+          }}
+        >
+          {box.records.map((record, idx) => (
+            <LabelCard
+              key={idx}
+              record={record}
+              allFields={fields}
+              visibleFields={visibleFields}
+              size={size}
+              boxNumber={box.boxNumber}
+              isCaissier={
+                String(record.caissiers || "").trim() !== "" ||
+                String(record.caissier || "").trim() !== ""
+              }
+            />
+          ))}
+        </div>
       ))}
     </div>
   );
