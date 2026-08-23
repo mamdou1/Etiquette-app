@@ -1,4 +1,6 @@
-const express = require("express");
+const express = require('express');
+const router = express.Router();
+const { requireAuth: auth } = require('../middleware/authMiddleware');
 const {
   getAllAgences,
   getAgenceById,
@@ -7,29 +9,16 @@ const {
   deleteAgence,
   deleteAgencePermanent,
   getStats,
-} = require("../controllers/agenceController");
+  getHierarchy,  // ⚠️ Cette fonction doit exister dans agenceController.js
+} = require('../controllers/agenceController');
 
-const router = express.Router();
-
-// GET /api/agences/stats - Statistiques
-router.get("/stats", getStats);
-
-// GET /api/agences - Récupérer toutes les agences
-router.get("/", getAllAgences);
-
-// GET /api/agences/:id - Récupérer une agence par ID
-router.get("/:id", getAgenceById);
-
-// POST /api/agences - Créer une agence
-router.post("/", createAgence);
-
-// PUT /api/agences/:id - Mettre à jour une agence
-router.put("/:id", updateAgence);
-
-// DELETE /api/agences/:id - Désactiver une agence (soft delete)
-router.delete("/:id", deleteAgence);
-
-// DELETE /api/agences/:id/permanent - Supprimer définitivement
-router.delete("/:id/permanent", deleteAgencePermanent);
+router.get('/', auth, getAllAgences);
+router.get('/stats', auth, getStats);
+router.get('/:id/hierarchy', auth, getHierarchy);  // ⚠️ LIGNE 15 - L'erreur vient d'ici !
+router.get('/:id', auth, getAgenceById);
+router.post('/', auth, createAgence);
+router.put('/:id', auth, updateAgence);
+router.delete('/:id', auth, deleteAgence);
+router.delete('/:id/permanent', auth, deleteAgencePermanent);
 
 module.exports = router;

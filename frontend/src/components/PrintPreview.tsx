@@ -1,6 +1,7 @@
 import React from "react";
 import LabelCard from "./LabelCard";
 import { BoxGroup, LabelSize, ColumnCount } from "../types";
+import { useSettings } from "../contexts/SettingsContext";
 
 interface Props {
   boxes: BoxGroup[];
@@ -19,6 +20,8 @@ const PrintPreview: React.FC<Props> = ({
   size, 
   boxField 
 }) => {
+  const { fontSize, fontStyle } = useSettings();
+  
   const totalBoxes = boxes.length;
   const totalRecords = boxes.reduce((sum, b) => sum + b.records.length, 0);
   
@@ -26,7 +29,6 @@ const PrintPreview: React.FC<Props> = ({
   const itemsPerPage = 4;
   const totalPages = Math.ceil(totalBoxes / itemsPerPage);
 
-  // Découper les boîtes par page (4 par page)
   const getBoxesForPage = (pageIndex: number) => {
     const start = pageIndex * itemsPerPage;
     const end = Math.min(start + itemsPerPage, totalBoxes);
@@ -41,6 +43,13 @@ const PrintPreview: React.FC<Props> = ({
         <span><strong className="text-primary">{totalRecords}</strong> enregistrements</span>
         <span><strong className="text-primary">{totalPages}</strong> page{totalPages > 1 ? "s" : ""}</span>
         <span><strong className="text-primary">{fields.length}</strong> champs</span>
+        <span className="text-accent">
+          Label: {fontSize.labelSize}px | Valeur: {fontSize.valueSize}px | QR: {fontSize.qrSize}px
+          {fontStyle.labelWeight === 'bold' && ' | Label gras'}
+          {fontStyle.valueWeight === 'bold' && ' | Valeur gras'}
+          {fontStyle.labelItalic && ' | Label italique'}
+          {fontStyle.valueItalic && ' | Valeur italique'}
+        </span>
       </div>
 
       {/* Générer une page A4 par groupe de 4 étiquettes */}

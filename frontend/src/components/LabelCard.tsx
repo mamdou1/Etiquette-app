@@ -1,6 +1,7 @@
 import React, { useMemo } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { LabelRecord, LabelSize, LabelValue } from "../types";
+import { useSettings } from "../contexts/SettingsContext";
 
 interface Props {
   record: LabelRecord;
@@ -116,8 +117,6 @@ function getDisplayFields(record: LabelRecord, visibleFields: string[]): { key: 
   return result;
 }
 
-const fontScale: Record<LabelSize, number> = { sm: 0.85, md: 1, lg: 1.15 };
-
 const LabelCard: React.FC<Props> = ({
   record,
   allFields,
@@ -127,7 +126,7 @@ const LabelCard: React.FC<Props> = ({
   boxNumber,
   isCaissier = false,
 }) => {
-  const scale = fontScale[size];
+  const { fontSize, fontStyle } = useSettings();
 
   const displayFields = useMemo(() => {
     return getDisplayFields(record, visibleFields);
@@ -147,28 +146,29 @@ const LabelCard: React.FC<Props> = ({
   const hasData = displayFields.length > 0;
   const fieldCount = displayFields.length;
 
-  const getFontSize = () => {
-    if (fieldCount <= 2) return "text-base";
-    if (fieldCount <= 4) return "text-sm";
-    return "text-xs";
+  // ─── Tailles dynamiques ──────────────────────────────────────
+  const getLabelSize = () => {
+    if (fieldCount <= 2) return `${fontSize.labelSize + 6}px`;
+    if (fieldCount <= 4) return `${fontSize.labelSize + 4}px`;
+    return `${fontSize.labelSize}px`;
   };
 
-  const getLabelFontSize = () => {
-    if (fieldCount <= 2) return "text-[21px]";
-    if (fieldCount <= 4) return "text-[19px]";
-    return "text-[15px]";
+  const getValueSize = () => {
+    if (fieldCount <= 2) return `${fontSize.valueSize + 8}px`;
+    if (fieldCount <= 4) return `${fontSize.valueSize + 4}px`;
+    return `${fontSize.valueSize}px`;
   };
 
-  const getValueFontSize = () => {
-    if (fieldCount <= 2) return "text-[25px]";
-    if (fieldCount <= 4) return "text-[21px]";
-    return "text-[19px]";
-  };
+  const qrSize = fieldCount <= 2 ? fontSize.qrSize + 20 : fieldCount <= 4 ? fontSize.qrSize + 10 : fontSize.qrSize;
 
-  const fontSize = getFontSize();
-  const labelSize = getLabelFontSize();
-  const valueSize = getValueFontSize();
-  const qrSize = fieldCount <= 2 ? 60 : fieldCount <= 4 ? 50 : 40;
+  const labelSize = getLabelSize();
+  const valueSize = getValueSize();
+
+  // ─── Styles de police ──────────────────────────────────────
+  const labelWeightClass = fontStyle.labelWeight === 'bold' ? 'font-bold' : fontStyle.labelWeight === 'semibold' ? 'font-semibold' : 'font-normal';
+  const valueWeightClass = fontStyle.valueWeight === 'bold' ? 'font-bold' : fontStyle.valueWeight === 'semibold' ? 'font-semibold' : 'font-normal';
+  const labelItalicClass = fontStyle.labelItalic ? 'italic' : '';
+  const valueItalicClass = fontStyle.valueItalic ? 'italic' : '';
 
   const labelColors = [
     { bg: "bg-blue-50", border: "border-blue-200" },
@@ -211,14 +211,14 @@ const LabelCard: React.FC<Props> = ({
                 className="font-mono flex items-baseline gap-1.5 min-w-0 p-1 rounded bg-white/50 hover:bg-white/80 transition-colors"
               >
                 <span
-                  className={`text-muted font-semibold flex-shrink-0 ${labelSize}`}
-                  style={{ letterSpacing: "0.09em" }}
+                  className={`text-muted ${labelWeightClass} ${labelItalicClass} flex-shrink-0`}
+                  style={{ fontSize: labelSize, letterSpacing: "0.09em" }}
                 >
                   {label}:
                 </span>
                 <span
-                  className={`font-extrabolt text-primary ${valueSize}`}
-                  style={{ whiteSpace: "normal", wordBreak: "break-word" }}
+                  className={`text-primary ${valueWeightClass} ${valueItalicClass}`}
+                  style={{ fontSize: valueSize, whiteSpace: "normal", wordBreak: "break-word" }}
                 >
                   {value || "—"}
                 </span>

@@ -13,6 +13,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const navItems = [
     { path: "/", label: "🏷️ Étiquettes" },
     { path: "/agences", label: " Agences", icon: "🏢" },
+    { path: "/types-document", label: " Types", icon: "📄" },
     { path: "/recherche", label: " Recherche", icon: "🔍" },
     ...(user?.role === "admin" ? [{ path: "/utilisateurs", label: " Utilisateurs", icon: "👥" }] : []),
   ];

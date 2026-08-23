@@ -5,6 +5,7 @@ import SettingsPanel from "../components/SettingsPanel";
 import PrintPreview from "../components/PrintPreview";
 import { uploadExcel } from "../services/api";
 import { LabelRecord, BoxGroup, ColumnCount, LabelSize, FieldFilters } from "../types";
+import { useSettings } from "../contexts/SettingsContext";
 
 // ─── Helpers ──────────────────────────────────────────────────
 
@@ -259,13 +260,24 @@ function parseExcelToBoxes(file: File): Promise<{ filename: string; boxes: BoxGr
 // ─── Composant Home ───────────────────────────────────────────
 
 const Home: React.FC = () => {
+  const {
+    cols,
+    size,
+    visibleFields,
+    filters,
+    setCols,
+    setSize,
+    setVisibleFields,
+    setFilters,
+    updateFilter,
+    clearFilters,
+    toggleField,
+    reorderFields,
+  } = useSettings();
+
   const [boxes, setBoxes] = useState<BoxGroup[]>([]);
   const [rawRecords, setRawRecords] = useState<LabelRecord[]>([]);
   const [fields, setFields] = useState<string[]>([]);
-  const [visibleFields, setVisibleFields] = useState<string[]>([]);
-  const [cols, setCols] = useState<ColumnCount>(2);
-  const [size, setSize] = useState<LabelSize>("md");
-  const [filters, setFilters] = useState<FieldFilters>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [filename, setFilename] = useState("");
@@ -273,9 +285,19 @@ const Home: React.FC = () => {
   const [enrichedInfo, setEnrichedInfo] = useState<{ original: number; saved: number } | null>(null);
   const [uploading, setUploading] = useState(false);
   const [selectedYears, setSelectedYears] = useState<string[]>([]);
+  const [detectedFields, setDetectedFields] = useState<string[]>([]);
+  const [importStats, setImportStats] = useState<{
+    saved: number;
+    doublons: number;
+    agences: number;
+    nouvellesAgences: number;
+    types: number;
+    nouveauxTypes: number;
+    relations: number;
+    isReimport: boolean;
+    message?: string;
+  } | null>(null);
 
-  // On conserve les lignes d'origine : les filtres (notamment les années)
-  // doivent être appliqués avant de fusionner les données d'une même boîte.
   const allRecords = rawRecords;
   const yearFields = useMemo(() => fields.filter(isYearField), [fields]);
   const availableYears = useMemo(() => [...new Set(
@@ -300,9 +322,9 @@ const Home: React.FC = () => {
     setLoading(true);
     setError("");
     setEnrichedInfo(null);
+    setImportStats(null);
     
     try {
-      // 1. Parser le fichier Excel (frontend)
       const result = await parseExcelToBoxes(file);
       
       setBoxes(result.boxes);
@@ -313,8 +335,8 @@ const Home: React.FC = () => {
       setBoxField(result.boxKey);
       setFilters({});
       setSelectedYears([]);
+      setDetectedFields(result.fields);
 
-      // 2. ✅ Envoyer les données au backend pour stockage
       setUploading(true);
       try {
         const response = await uploadExcel(file);
@@ -323,10 +345,21 @@ const Home: React.FC = () => {
             original: response.originalCount || 0,
             saved: response.savedCount || 0,
           });
+          
+          setImportStats({
+            saved: response.savedCount || 0,
+            doublons: response.doublonsIgnores || 0,
+            agences: response.agenceTrouvees?.length || 0,
+            nouvellesAgences: response.nouvellesAgences?.length || 0,
+            types: response.typesTrouves?.length || 0,
+            nouveauxTypes: response.nouveauxTypes?.length || 0,
+            relations: response.relationsCreees?.length || 0,
+            isReimport: response.isReimport || false,
+            message: response.message
+          });
         }
       } catch (err: any) {
         console.warn("⚠️ Stockage dans les archives échoué:", err.message);
-        // Ne pas bloquer l'affichage si le stockage échoue
       } finally {
         setUploading(false);
       }
@@ -348,38 +381,10 @@ const Home: React.FC = () => {
     setError("");
     setEnrichedInfo(null);
     setSelectedYears([]);
+    setImportStats(null);
+    setDetectedFields([]);
   };
 
-  const toggleField = (key: string) => {
-    setVisibleFields((prev) =>
-      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key],
-    );
-  };
-
-  const handleReorderFields = (startIndex: number, endIndex: number) => {
-    setVisibleFields((prev) => {
-      const newOrder = [...prev];
-      const [removed] = newOrder.splice(startIndex, 1);
-      newOrder.splice(endIndex, 0, removed);
-      return newOrder;
-    });
-  };
-
-  const updateFilter = (
-    field: string,
-    key: "value" | "from" | "to",
-    value: string,
-  ) => {
-    setFilters((prev) => ({
-      ...prev,
-      [field]: {
-        ...prev[field],
-        [key]: value,
-      },
-    }));
-  };
-
-  const clearFilters = () => setFilters({});
   const toggleYear = (year: string) => {
     setSelectedYears((previous) =>
       previous.length === 0
@@ -428,13 +433,40 @@ const Home: React.FC = () => {
               </p>
             )}
 
-            {enrichedInfo && (
-              <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded">
-                <p className="text-sm text-green-700 font-mono">
-                  ✅ Stockage terminé : 
-                  <span className="font-bold"> {enrichedInfo.original}</span> ligne(s) traitées
-                  → <span className="font-bold">{enrichedInfo.saved}</span> boîte(s) unique(s) sauvegardée(s) dans les archives
+            {/* ─── Stats après upload ─────────────────────────── */}
+            {importStats && (
+              <div className={`mt-3 p-3 rounded border ${
+                importStats.isReimport 
+                  ? 'bg-amber-50 border-amber-200' 
+                  : 'bg-green-50 border-green-200'
+              }`}>
+                <p className={`text-sm font-mono ${
+                  importStats.isReimport ? 'text-amber-700' : 'text-green-700'
+                }`}>
+                  {importStats.isReimport ? '🔄' : '✅'} 
+                  {importStats.message || `Stockage terminé : ${importStats.saved} boîte(s) sauvegardée(s)`}
+                  {importStats.doublons > 0 && (
+                    <span className="text-amber-600 ml-2">
+                      ⚠️ {importStats.doublons} doublon(s) ignoré(s)
+                    </span>
+                  )}
                 </p>
+                <div className="mt-1 text-xs text-muted font-mono flex flex-wrap gap-3">
+                  <span>🏢 {importStats.agences} agence(s) trouvée(s)</span>
+                  {importStats.nouvellesAgences > 0 && (
+                    <span className="text-accent">✨ +{importStats.nouvellesAgences} nouvelle(s)</span>
+                  )}
+                  <span>📄 {importStats.types} type(s) trouvé(s)</span>
+                  {importStats.nouveauxTypes > 0 && (
+                    <span className="text-accent">✨ +{importStats.nouveauxTypes} nouveau(x)</span>
+                  )}
+                  <span>🔗 {importStats.relations} relation(s) créée(s)</span>
+                </div>
+                {detectedFields.length > 0 && (
+                  <p className="mt-1 text-[10px] text-muted/60 font-mono">
+                    🔍 Champs détectés : {detectedFields.join(', ')}
+                  </p>
+                )}
               </div>
             )}
 
@@ -472,24 +504,14 @@ const Home: React.FC = () => {
         <>
           <SettingsPanel
             fields={fields}
-            visibleFields={visibleFields}
-            cols={cols}
-            size={size}
-            filters={filters}
-            onToggleField={toggleField}
-            onReorderFields={handleReorderFields}
-            onColsChange={setCols}
-            onSizeChange={setSize}
-            onFilterChange={updateFilter}
-            onClearFilters={clearFilters}
-            onPrint={() => window.print()}
-            onReset={reset}
             filename={filename}
             total={totalBoxes}
             sourceTotal={boxes.length}
             availableYears={availableYears}
             selectedYears={selectedYears}
             onToggleYear={toggleYear}
+            onPrint={() => window.print()}
+            onReset={reset}
           />
           <PrintPreview
             boxes={filteredBoxes}

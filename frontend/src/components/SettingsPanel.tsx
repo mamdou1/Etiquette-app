@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import { ColumnCount, FieldFilters, LabelSize } from "../types";
+import { useSettings } from "../contexts/SettingsContext";
+import { ColumnCount, LabelSize } from "../types";
 
 const DATE_FIELD_RE = /\b(date|jour|production|expiration|echeance)\b/i;
 
@@ -14,59 +15,52 @@ function isDateField(field: string) {
   return DATE_FIELD_RE.test(normalizeText(field));
 }
 
-function hasActiveFilters(filters: FieldFilters) {
-  return Object.values(filters).some((filter) =>
+function hasActiveFilters(filters: any) {
+  return Object.values(filters).some((filter: any) =>
     Boolean(filter.value?.trim() || filter.from || filter.to),
   );
 }
 
 interface Props {
   fields: string[];
-  visibleFields: string[];
-  cols: ColumnCount;
-  size: LabelSize;
-  filters: FieldFilters;
-  onToggleField: (key: string) => void;
-  onReorderFields: (startIndex: number, endIndex: number) => void;
-  onColsChange: (n: ColumnCount) => void;
-  onSizeChange: (s: LabelSize) => void;
-  onFilterChange: (
-    field: string,
-    key: "value" | "from" | "to",
-    value: string,
-  ) => void;
-  onClearFilters: () => void;
-  onPrint: () => void;
-  onReset: () => void;
   filename: string;
   total: number;
   sourceTotal: number;
   availableYears: string[];
   selectedYears: string[];
   onToggleYear: (year: string) => void;
+  onPrint: () => void;
+  onReset: () => void;
 }
 
 const SettingsPanel: React.FC<Props> = ({
   fields,
-  visibleFields,
-  cols,
-  size,
-  filters,
-  onToggleField,
-  onReorderFields,
-  onColsChange,
-  onSizeChange,
-  onFilterChange,
-  onClearFilters,
-  onPrint,
-  onReset,
   filename,
   total,
   sourceTotal,
   availableYears,
   selectedYears,
   onToggleYear,
+  onPrint,
+  onReset,
 }) => {
+  const {
+    cols,
+    size,
+    fontSize,
+    fontStyle,
+    visibleFields,
+    filters,
+    setCols,
+    setSize,
+    setFontSize,
+    setFontStyle,
+    updateFilter,
+    clearFilters,
+    toggleField,
+    reorderFields,
+  } = useSettings();
+
   const activeFilters = hasActiveFilters(filters);
   const [showFields, setShowFields] = useState(true);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
@@ -94,7 +88,7 @@ const SettingsPanel: React.FC<Props> = ({
   const handleDrop = (e: React.DragEvent, index: number) => {
     e.preventDefault();
     if (dragIndex !== null && dragIndex !== index) {
-      onReorderFields(dragIndex, index);
+      reorderFields(dragIndex, index);
     }
     setDragIndex(null);
     setDragOverIndex(null);
@@ -107,11 +101,11 @@ const SettingsPanel: React.FC<Props> = ({
 
   const handleFieldClick = (key: string) => {
     if (dragIndex !== null) return;
-    onToggleField(key);
+    toggleField(key);
   };
 
   return (
-    <aside className="no-print w-72 min-w-[288px] bg-white border-r border-border flex flex-col gap-6 p-6 overflow-y-auto h-screen sticky top-0">
+    <aside className="no-print w-80 min-w-[320px] bg-white border-r border-border flex flex-col gap-4 p-6 overflow-y-auto h-screen sticky top-0">
       {/* ─── Section 01 : Fichier ───────────────────────────── */}
       <div>
         <p className="font-mono text-[10px] uppercase tracking-widest text-muted mb-3">
@@ -143,6 +137,7 @@ const SettingsPanel: React.FC<Props> = ({
         </button>
       </div>
 
+      {/* ─── Section 02 : Années ────────────────────────────── */}
       {availableYears.length > 1 && (
         <div>
           <div className="flex items-center justify-between gap-2 mb-3">
@@ -165,7 +160,9 @@ const SettingsPanel: React.FC<Props> = ({
                 <button
                   key={year}
                   onClick={() => onToggleYear(year)}
-                  className={`border px-3 py-2 font-mono text-xs transition-colors ${selected ? "border-accent bg-accent text-white" : "border-border bg-white text-muted"}`}
+                  className={`border px-3 py-2 font-mono text-xs transition-colors ${
+                    selected ? "border-accent bg-accent text-white" : "border-border bg-white text-muted"
+                  }`}
                 >
                   {year}
                 </button>
@@ -173,12 +170,14 @@ const SettingsPanel: React.FC<Props> = ({
             })}
           </div>
           <p className="mt-2 font-mono text-[10px] text-muted">
-            {selectedYears.length === 0 ? "Toutes les années sont sélectionnées" : `${selectedYears.length} année${selectedYears.length > 1 ? "s" : ""} sélectionnée${selectedYears.length > 1 ? "s" : ""}`}
+            {selectedYears.length === 0
+              ? "Toutes les années sont sélectionnées"
+              : `${selectedYears.length} année${selectedYears.length > 1 ? "s" : ""} sélectionnée${selectedYears.length > 1 ? "s" : ""}`}
           </p>
         </div>
       )}
 
-      {/* ─── Section 02 : Filtres ───────────────────────────── */}
+      {/* ─── Section 03 : Filtres ───────────────────────────── */}
       <div>
         <div className="flex items-center justify-between gap-2 mb-3">
           <p className="font-mono text-[10px] uppercase tracking-widest text-muted">
@@ -186,7 +185,7 @@ const SettingsPanel: React.FC<Props> = ({
           </p>
           {activeFilters && (
             <button
-              onClick={onClearFilters}
+              onClick={clearFilters}
               className="font-mono text-[10px] text-accent hover:underline"
             >
               Effacer
@@ -194,7 +193,7 @@ const SettingsPanel: React.FC<Props> = ({
           )}
         </div>
 
-        <div className="flex flex-col gap-3 max-h-60 overflow-y-auto">
+        <div className="flex flex-col gap-3 max-h-48 overflow-y-auto">
           {fields.map((field) => {
             const filter = filters[field] ?? {};
             return (
@@ -208,7 +207,7 @@ const SettingsPanel: React.FC<Props> = ({
                       type="date"
                       value={filter.from ?? ""}
                       onChange={(event) =>
-                        onFilterChange(field, "from", event.target.value)
+                        updateFilter(field, "from", event.target.value)
                       }
                       className="w-full min-w-0 border border-border bg-white px-2 py-2 font-mono text-[11px] outline-none focus:border-accent"
                       title={`Date de debut pour ${field}`}
@@ -217,7 +216,7 @@ const SettingsPanel: React.FC<Props> = ({
                       type="date"
                       value={filter.to ?? ""}
                       onChange={(event) =>
-                        onFilterChange(field, "to", event.target.value)
+                        updateFilter(field, "to", event.target.value)
                       }
                       className="w-full min-w-0 border border-border bg-white px-2 py-2 font-mono text-[11px] outline-none focus:border-accent"
                       title={`Date de fin pour ${field}`}
@@ -228,7 +227,7 @@ const SettingsPanel: React.FC<Props> = ({
                     type="text"
                     value={filter.value ?? ""}
                     onChange={(event) =>
-                      onFilterChange(field, "value", event.target.value)
+                      updateFilter(field, "value", event.target.value)
                     }
                     placeholder="Contient..."
                     className="w-full border border-border bg-white px-2 py-2 font-mono text-xs outline-none focus:border-accent"
@@ -240,14 +239,14 @@ const SettingsPanel: React.FC<Props> = ({
         </div>
       </div>
 
-      {/* ─── Section 03 : Champs affichés AVEC DRAG & DROP ── */}
+      {/* ─── Section 04 : Champs affichés AVEC DRAG & DROP ── */}
       <div>
         <div 
           className="flex items-center justify-between gap-2 mb-3 cursor-pointer"
           onClick={() => setShowFields(!showFields)}
         >
           <p className="font-mono text-[10px] uppercase tracking-widest text-muted">
-            03 - Champs affichés
+            04 - Champs affichés
           </p>
           <svg
             width="12"
@@ -263,7 +262,7 @@ const SettingsPanel: React.FC<Props> = ({
         </div>
 
         {showFields && (
-          <div className="border border-border p-3 bg-surface max-h-60 overflow-y-auto">
+          <div className="border border-border p-3 bg-surface max-h-48 overflow-y-auto">
             <p className="font-mono text-[9px] text-muted mb-2">
               Glissez-déposez pour réorganiser
             </p>
@@ -327,7 +326,7 @@ const SettingsPanel: React.FC<Props> = ({
                 .map((key) => (
                   <div
                     key={`hidden-${key}`}
-                    onClick={() => onToggleField(key)}
+                    onClick={() => toggleField(key)}
                     className="flex items-center justify-between px-3 py-2 border cursor-pointer select-none transition-colors bg-white border-border hover:bg-[#f0eeea]"
                   >
                     <span className="font-mono text-xs font-medium text-muted">{key}</span>
@@ -341,16 +340,16 @@ const SettingsPanel: React.FC<Props> = ({
         )}
       </div>
 
-      {/* ─── Section 04 : Colonnes ──────────────────────────── */}
+      {/* ─── Section 05 : Colonnes ──────────────────────────── */}
       <div>
         <p className="font-mono text-[10px] uppercase tracking-widest text-muted mb-3">
-          04 - Colonnes
+          05 - Colonnes
         </p>
         <div className="flex gap-2">
           {([2, 3, 4] as ColumnCount[]).map((n) => (
             <button
               key={n}
-              onClick={() => onColsChange(n)}
+              onClick={() => setCols(n)}
               className={`flex-1 py-2 border font-mono text-sm font-medium transition-colors
                 ${cols === n ? "bg-accent border-accent text-white" : "bg-white border-border hover:border-muted"}`}
             >
@@ -360,22 +359,170 @@ const SettingsPanel: React.FC<Props> = ({
         </div>
       </div>
 
-      {/* ─── Section 05 : Taille ────────────────────────────── */}
+      {/* ─── Section 06 : Tailles réelles (SLIDERS) ─────────── */}
       <div>
         <p className="font-mono text-[10px] uppercase tracking-widest text-muted mb-3">
-          05 - Taille
+          06 - Tailles des polices (px)
         </p>
-        <div className="flex gap-2">
-          {(["sm", "md", "lg"] as LabelSize[]).map((s, i) => (
+        
+        <div className="mb-3">
+          <div className="flex justify-between font-mono text-xs text-muted">
+            <label>Label</label>
+            <span>{fontSize.labelSize}px</span>
+          </div>
+          <input
+            type="range"
+            min="8"
+            max="24"
+            value={fontSize.labelSize}
+            onChange={(e) => setFontSize({ ...fontSize, labelSize: parseInt(e.target.value) })}
+            className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-accent"
+          />
+        </div>
+
+        <div className="mb-3">
+          <div className="flex justify-between font-mono text-xs text-muted">
+            <label>Valeur</label>
+            <span>{fontSize.valueSize}px</span>
+          </div>
+          <input
+            type="range"
+            min="10"
+            max="36"
+            value={fontSize.valueSize}
+            onChange={(e) => setFontSize({ ...fontSize, valueSize: parseInt(e.target.value) })}
+            className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-accent"
+          />
+        </div>
+
+        <div className="mb-3">
+          <div className="flex justify-between font-mono text-xs text-muted">
+            <label>QR Code</label>
+            <span>{fontSize.qrSize}px</span>
+          </div>
+          <input
+            type="range"
+            min="30"
+            max="120"
+            value={fontSize.qrSize}
+            onChange={(e) => setFontSize({ ...fontSize, qrSize: parseInt(e.target.value) })}
+            className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-accent"
+          />
+        </div>
+      </div>
+
+      {/* ─── Section 07 : Style des polices ──────────────────── */}
+      <div>
+        <p className="font-mono text-[10px] uppercase tracking-widest text-muted mb-3">
+          07 - Style des polices
+        </p>
+
+        {/* Label */}
+        <div className="mb-3 p-3 border border-border rounded bg-surface/50">
+          <div className="flex justify-between font-mono text-xs text-muted mb-2">
+            <label>Label</label>
+          </div>
+          <div className="flex gap-2 items-center flex-wrap">
             <button
-              key={s}
-              onClick={() => onSizeChange(s)}
-              className={`flex-1 py-2 border font-mono text-xs font-medium transition-colors
-                ${size === s ? "bg-accent border-accent text-white" : "bg-white border-border hover:border-muted"}`}
+              onClick={() => setFontStyle({ 
+                ...fontStyle, 
+                labelWeight: fontStyle.labelWeight === 'bold' ? 'semibold' : 'bold' 
+              })}
+              className={`px-3 py-1 border font-mono text-sm transition-colors rounded
+                ${fontStyle.labelWeight === 'bold' 
+                  ? 'bg-accent border-accent text-white' 
+                  : 'bg-white border-border hover:border-muted'}`}
             >
-              {["Petit", "Moyen", "Grand"][i]}
+              <span className="font-bold">Gras</span>
             </button>
-          ))}
+            <button
+              onClick={() => setFontStyle({ 
+                ...fontStyle, 
+                labelWeight: fontStyle.labelWeight === 'semibold' ? 'normal' : 'semibold' 
+              })}
+              className={`px-3 py-1 border font-mono text-sm transition-colors rounded
+                ${fontStyle.labelWeight === 'semibold' 
+                  ? 'bg-accent border-accent text-white' 
+                  : 'bg-white border-border hover:border-muted'}`}
+            >
+              <span className="font-semibold">Semi-gras</span>
+            </button>
+            <button
+              onClick={() => setFontStyle({ 
+                ...fontStyle, 
+                labelItalic: !fontStyle.labelItalic 
+              })}
+              className={`px-3 py-1 border font-mono text-sm transition-colors rounded
+                ${fontStyle.labelItalic 
+                  ? 'bg-accent border-accent text-white' 
+                  : 'bg-white border-border hover:border-muted'}`}
+            >
+              <span className="italic">Italique</span>
+            </button>
+            <span 
+              className={`ml-auto text-sm px-2 py-1 rounded bg-white border border-border
+                ${fontStyle.labelWeight === 'bold' ? 'font-bold' : ''}
+                ${fontStyle.labelWeight === 'semibold' ? 'font-semibold' : ''}
+                ${fontStyle.labelItalic ? 'italic' : ''}
+              `}
+            >
+              Aa
+            </span>
+          </div>
+        </div>
+
+        {/* Valeur */}
+        <div className="mb-3 p-3 border border-border rounded bg-surface/50">
+          <div className="flex justify-between font-mono text-xs text-muted mb-2">
+            <label>Valeur</label>
+          </div>
+          <div className="flex gap-2 items-center flex-wrap">
+            <button
+              onClick={() => setFontStyle({ 
+                ...fontStyle, 
+                valueWeight: fontStyle.valueWeight === 'bold' ? 'semibold' : 'bold' 
+              })}
+              className={`px-3 py-1 border font-mono text-sm transition-colors rounded
+                ${fontStyle.valueWeight === 'bold' 
+                  ? 'bg-accent border-accent text-white' 
+                  : 'bg-white border-border hover:border-muted'}`}
+            >
+              <span className="font-bold">Gras</span>
+            </button>
+            <button
+              onClick={() => setFontStyle({ 
+                ...fontStyle, 
+                valueWeight: fontStyle.valueWeight === 'semibold' ? 'normal' : 'semibold' 
+              })}
+              className={`px-3 py-1 border font-mono text-sm transition-colors rounded
+                ${fontStyle.valueWeight === 'semibold' 
+                  ? 'bg-accent border-accent text-white' 
+                  : 'bg-white border-border hover:border-muted'}`}
+            >
+              <span className="font-semibold">Semi-gras</span>
+            </button>
+            <button
+              onClick={() => setFontStyle({ 
+                ...fontStyle, 
+                valueItalic: !fontStyle.valueItalic 
+              })}
+              className={`px-3 py-1 border font-mono text-sm transition-colors rounded
+                ${fontStyle.valueItalic 
+                  ? 'bg-accent border-accent text-white' 
+                  : 'bg-white border-border hover:border-muted'}`}
+            >
+              <span className="italic">Italique</span>
+            </button>
+            <span 
+              className={`ml-auto text-sm px-2 py-1 rounded bg-white border border-border
+                ${fontStyle.valueWeight === 'bold' ? 'font-bold' : ''}
+                ${fontStyle.valueWeight === 'semibold' ? 'font-semibold' : ''}
+                ${fontStyle.valueItalic ? 'italic' : ''}
+              `}
+            >
+              Aa
+            </span>
+          </div>
         </div>
       </div>
 

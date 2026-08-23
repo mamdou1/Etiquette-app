@@ -281,6 +281,43 @@ const getStats = async (req, res) => {
   }
 };
 
+// Ajouter cette fonction dans agenceController.js
+
+// ─── GET /api/agences/:id/hierarchy ──────────────────────────
+// Récupère la hiérarchie complète : Agence → Types → Années → Boîtes
+const getHierarchy = async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) {
+      return res.status(400).json({
+        success: false,
+        message: "ID invalide",
+      });
+    }
+
+    const hierarchy = await AgenceModel.getHierarchy(id);
+    
+    if (!hierarchy) {
+      return res.status(404).json({
+        success: false,
+        message: "Agence non trouvée",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: hierarchy,
+    });
+  } catch (error) {
+    console.error('❌ getHierarchy error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || "Erreur lors de la récupération de la hiérarchie",
+    });
+  }
+};
+
+// N'oublie pas d'ajouter getHierarchy dans module.exports
 module.exports = {
   getAllAgences,
   getAgenceById,
@@ -289,4 +326,5 @@ module.exports = {
   deleteAgence,
   deleteAgencePermanent,
   getStats,
+  getHierarchy,  // ✅ NOUVEAU
 };

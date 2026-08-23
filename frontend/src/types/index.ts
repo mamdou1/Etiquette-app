@@ -60,3 +60,16 @@ export interface Archive {
   uploaded_at?: Date;
   created_at?: Date;
 }
+
+export interface FontSize {
+  labelSize: number;   // 8-24px
+  valueSize: number;   // 10-36px
+  qrSize: number;      // 30-120px
+}
+
+export interface FontStyle {
+  labelWeight: 'normal' | 'semibold' | 'bold';
+  valueWeight: 'normal' | 'semibold' | 'bold';
+  labelItalic: boolean;
+  valueItalic: boolean;
+}
