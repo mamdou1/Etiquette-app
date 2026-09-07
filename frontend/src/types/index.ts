@@ -65,6 +65,7 @@ export interface FontSize {
   labelSize: number;   // 8-24px
   valueSize: number;   // 10-36px
   qrSize: number;      // 30-120px
+  agenceSize: number;  // 20-48px
 }
 
 export interface FontStyle {

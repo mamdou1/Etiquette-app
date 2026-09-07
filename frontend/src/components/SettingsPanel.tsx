@@ -31,7 +31,7 @@ interface Props {
   onToggleYear: (year: string) => void;
   onPrint: () => void;
   onReset: () => void;
-  metaFields?: Array<{ id: number; name: string; label: string; field_type: string }>; // ✅ Ajout
+  metaFields?: Array<{ id: number; name: string; label: string; field_type: string }>;
 }
 
 const SettingsPanel: React.FC<Props> = ({
@@ -44,7 +44,7 @@ const SettingsPanel: React.FC<Props> = ({
   onToggleYear,
   onPrint,
   onReset,
-  metaFields = [], // ✅ Ajout
+  metaFields = [],
 }) => {
   const {
     cols,
@@ -310,7 +310,7 @@ const SettingsPanel: React.FC<Props> = ({
         )}
       </div>
 
-      <div>
+      {/* <div>
         <p className="font-mono text-[10px] uppercase tracking-widest text-muted mb-3">
           05 - Colonnes
         </p>
@@ -326,7 +326,7 @@ const SettingsPanel: React.FC<Props> = ({
             </button>
           ))}
         </div>
-      </div>
+      </div> */}
 
       <div>
         <p className="font-mono text-[10px] uppercase tracking-widest text-muted mb-3">
@@ -374,6 +374,22 @@ const SettingsPanel: React.FC<Props> = ({
             max="120"
             value={fontSize.qrSize}
             onChange={(e) => setFontSize({ ...fontSize, qrSize: parseInt(e.target.value) })}
+            className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-accent"
+          />
+        </div>
+
+        {/* ✅ NOUVEAU - Réglage spécifique pour l'agence */}
+        <div className="mb-3">
+          <div className="flex justify-between font-mono text-xs text-muted">
+            <label>Agence</label>
+            <span>{fontSize.agenceSize}px</span>
+          </div>
+          <input
+            type="range"
+            min="20"
+            max="48"
+            value={fontSize.agenceSize}
+            onChange={(e) => setFontSize({ ...fontSize, agenceSize: parseInt(e.target.value) })}
             className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-accent"
           />
         </div>

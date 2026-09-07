@@ -26,7 +26,7 @@ const LabelCard: React.FC<Props> = ({
 }) => {
   const { fontSize, fontStyle } = useSettings();
 
-  // ─── Helper pour récupérer la valeur partout ──────────────────────
+  // ─── Helper pour récupérer la valeur ──────────────────────
   const getFieldValue = (key: string): string => {
     // 1. Direct dans record
     if (
@@ -54,46 +54,111 @@ const LabelCard: React.FC<Props> = ({
       : "";
   };
 
-  // ─── Construction dynamique des champs ──────────────────────
-  const displayFields = useMemo(() => {
-    const result: { key: string; label: string; value: string }[] = [];
-
-    // Cas 1: Utiliser les metaFields fournis
+  // ─── Récupération du nom de l'agence ──────────────────────
+  const agenceValue = useMemo(() => {
+    // Liste complète des noms possibles pour l'agence
+    const agenceKeys = [
+      "Nom de l' Agence",
+      "Nom de l'Agence",
+      "Nom Agence",
+      "agence",
+      "Agence",
+      "agence_nom",
+      "nom_agence",
+      "nom",
+      "DGEI",
+      "dgei",
+      "agence_nom_agence",
+      "libelle_agence"
+    ];
+    
+    // 1. Chercher par les clés exactes
+    for (const key of agenceKeys) {
+      const value = getFieldValue(key);
+      if (value) return value;
+    }
+    
+    // 2. Chercher dans visibleFields
+    for (const field of visibleFields) {
+      const lowerField = field.toLowerCase();
+      if (lowerField.includes("agence") || lowerField.includes("dgei") || 
+          lowerField.includes("nom") || lowerField.includes("agence")) {
+        const value = getFieldValue(field);
+        if (value) return value;
+      }
+    }
+    
+    // 3. Chercher dans metaFields
     if (metaFields.length > 0) {
       for (const mf of metaFields) {
-        // Vérifier si le champ est visible
+        const lowerLabel = mf.label.toLowerCase();
+        const lowerName = mf.name.toLowerCase();
+        if (lowerLabel.includes("agence") || lowerName.includes("agence") ||
+            lowerLabel.includes("dgei") || lowerName.includes("dgei") ||
+            lowerLabel.includes("nom") || lowerName.includes("nom")) {
+          const value = getFieldValue(mf.name) || getFieldValue(mf.label);
+          if (value) return value;
+        }
+      }
+    }
+    
+    // 4. Chercher dans tous les champs du record
+    for (const key of Object.keys(record)) {
+      const lowerKey = key.toLowerCase();
+      if (lowerKey.includes("agence") || lowerKey.includes("dgei") || 
+          lowerKey.includes("nom")) {
+        const value = getFieldValue(key);
+        if (value) return value;
+      }
+    }
+    
+    return "";
+  }, [record, visibleFields, metaFields]);
+
+  // ─── Récupération des valeurs (EXCLURE l'agence) ─────────
+  const displayValues = useMemo(() => {
+    const result: string[] = [];
+
+    if (metaFields.length > 0) {
+      for (const mf of metaFields) {
         const isVisible =
           visibleFields.includes(mf.name) || visibleFields.includes(mf.label);
         if (!isVisible) continue;
 
         const value = getFieldValue(mf.name) || getFieldValue(mf.label);
-
-        if (value) {
-          result.push({
-            key: mf.name,
-            label: mf.label,
-            value,
-          });
+        
+        // Vérifier si c'est l'agence
+        const isAgence = value === agenceValue && agenceValue !== "" && 
+          (mf.name.toLowerCase().includes("agence") || 
+           mf.label.toLowerCase().includes("agence") ||
+           mf.name.toLowerCase().includes("dgei") ||
+           mf.label.toLowerCase().includes("dgei") ||
+           mf.name.toLowerCase().includes("nom") ||
+           mf.label.toLowerCase().includes("nom"));
+        
+        if (value && !isAgence) {
+          result.push(value);
         }
       }
       return result;
     }
 
-    // Cas 2: Fallback - utiliser visibleFields directement
     for (const field of visibleFields) {
       const value = getFieldValue(field);
-      if (value) {
-        result.push({
-          key: field,
-          label: getDisplayKey(field),
-          value,
-        });
+      const isAgence = value === agenceValue && agenceValue !== "" && 
+        (field.toLowerCase().includes("agence") || 
+         field.toLowerCase().includes("dgei") ||
+         field.toLowerCase().includes("nom"));
+      
+      if (value && !isAgence) {
+        result.push(value);
       }
     }
 
     return result;
-  }, [record, visibleFields, metaFields]);
+  }, [record, visibleFields, metaFields, agenceValue]);
 
+  // ─── Données QR ────────────────────────────────────────────
   const qrData = useMemo(() => {
     const lines: string[] = [`N° Boîte: ${boxNumber}`];
 
@@ -104,7 +169,6 @@ const LabelCard: React.FC<Props> = ({
 
     for (const field of fieldsToUse) {
       const value = getFieldValue(field.name) || getFieldValue(field.label);
-
       if (value) {
         lines.push(`${field.label}: ${value}`);
       }
@@ -112,39 +176,24 @@ const LabelCard: React.FC<Props> = ({
     return lines.join(" | ");
   }, [record, allFields, boxNumber, metaFields]);
 
-  const hasData = displayFields.length > 0;
-  const fieldCount = displayFields.length;
+  const hasData = displayValues.length > 0;
+  const fieldCount = displayValues.length;
 
-  // ─── Tailles dynamiques ──────────────────────────────────────
-  const getLabelSize = () => {
-    if (fieldCount <= 2) return `${fontSize.labelSize + 6}px`;
-    if (fieldCount <= 4) return `${fontSize.labelSize + 4}px`;
-    return `${fontSize.labelSize}px`;
-  };
-
+  // ─── Tailles ──────────────────────────────────────────────
   const getValueSize = () => {
-    if (fieldCount <= 2) return `${fontSize.valueSize + 8}px`;
-    if (fieldCount <= 4) return `${fontSize.valueSize + 4}px`;
+    if (fieldCount <= 2) return `${fontSize.valueSize + 14}px`;
+    if (fieldCount <= 4) return `${fontSize.valueSize + 8}px`;
     return `${fontSize.valueSize}px`;
   };
 
   const qrSize =
     fieldCount <= 2
-      ? fontSize.qrSize + 20
+      ? fontSize.qrSize + 35
       : fieldCount <= 4
-        ? fontSize.qrSize + 10
+        ? fontSize.qrSize + 20
         : fontSize.qrSize;
 
-  const labelSize = getLabelSize();
   const valueSize = getValueSize();
-
-  // ─── Styles de police ──────────────────────────────────────
-  const labelWeightClass =
-    fontStyle.labelWeight === "bold"
-      ? "font-bold"
-      : fontStyle.labelWeight === "semibold"
-        ? "font-semibold"
-        : "font-normal";
 
   const valueWeightClass =
     fontStyle.valueWeight === "bold"
@@ -153,9 +202,9 @@ const LabelCard: React.FC<Props> = ({
         ? "font-semibold"
         : "font-normal";
 
-  const labelItalicClass = fontStyle.labelItalic ? "italic" : "";
   const valueItalicClass = fontStyle.valueItalic ? "italic" : "";
 
+  // ─── Couleurs ─────────────────────────────────────────────
   const labelColors = [
     { bg: "bg-blue-50", border: "border-blue-200" },
     { bg: "bg-green-50", border: "border-green-200" },
@@ -171,18 +220,22 @@ const LabelCard: React.FC<Props> = ({
       className={`label-card ${isCaissier ? "border-emerald-500 border-2 shadow-lg" : ""} ${color.bg} ${color.border}`}
       style={width ? { width } : undefined}
     >
-      <div className="mb-2 pb-2 border-b-2 border-border flex items-center justify-between">
-        <span className="font-mono font-extrabold text-primary text-xl tracking-tight">
-          N° de la boîte: {boxNumber}
-        </span>
-        <div className="flex items-center gap-2">
-          {isCaissier && (
-            <span className="bg-emerald-500 text-white text-[10px] font-mono font-bold px-2.5 py-1 rounded-full shadow-sm">
-              👤 Caissier
-            </span>
-          )}
+      {/* NOM DE L'AGENCE en haut - Utilise agenceSize */}
+      {agenceValue && (
+        <div className="text-center mb-3 pb-2 border-b-2 border-border/60">
+          <span
+            className="font-mono font-extrabold text-primary tracking-wider"
+            style={{ 
+              fontSize: `${fontSize.agenceSize}px`, 
+              letterSpacing: "0.15em",
+              lineHeight: "1.3",
+              display: "block"
+            }}
+          >
+            {agenceValue}
+          </span>
         </div>
-      </div>
+      )}
 
       {!hasData ? (
         <p className="font-mono text-sm text-muted italic text-center py-6">
@@ -190,32 +243,34 @@ const LabelCard: React.FC<Props> = ({
         </p>
       ) : (
         <>
-          <div className="flex-1 space-y-1.5 py-1">
-            {displayFields.map(({ key, label, value }) => (
-              <div
-                key={key}
-                className="font-mono flex items-baseline gap-1.5 min-w-0 p-1 rounded bg-white/50 hover:bg-white/80 transition-colors"
-              >
-                <span
-                  className={`text-muted ${labelWeightClass} ${labelItalicClass} flex-shrink-0`}
-                  style={{ fontSize: labelSize, letterSpacing: "0.09em" }}
+          {/* Valeurs centrales - Utilise valueSize */}
+          <div className="flex-1 space-y-1.5 py-1 text-center">
+            {displayValues.map((value, index) => {
+              // Vérifier si la valeur est le numéro de boîte
+              // On compare avec boxNumber pour ajouter "Boite N°" devant
+              const isBoxNumber = value === boxNumber;
+              
+              return (
+                <div
+                  key={index}
+                  className="font-mono p-1 rounded bg-white/50 hover:bg-white/80 transition-colors"
                 >
-                  {label}:
-                </span>
-                <span
-                  className={`text-primary ${valueWeightClass} ${valueItalicClass}`}
-                  style={{
-                    fontSize: valueSize,
-                    whiteSpace: "normal",
-                    wordBreak: "break-word",
-                  }}
-                >
-                  {value || "—"}
-                </span>
-              </div>
-            ))}
+                  <span
+                    className={`text-primary ${valueWeightClass} ${valueItalicClass}`}
+                    style={{
+                      fontSize: valueSize,
+                      whiteSpace: "normal",
+                      wordBreak: "break-word",
+                    }}
+                  >
+                    {isBoxNumber ? `Boite N° ${value}` : value || "—"}
+                  </span>
+                </div>
+              );
+            })}
           </div>
 
+          {/* QR Code en bas */}
           <div className="mt-1 flex justify-end">
             <div className="bg-white p-1 rounded shadow-sm border-border/30">
               <QRCodeSVG
@@ -230,26 +285,11 @@ const LabelCard: React.FC<Props> = ({
           </div>
         </>
       )}
-
-      <div className="mt-1 pt-1 border-t border-dashed border-border/60 flex justify-between items-center">
-        <span
-          className="font-mono text-muted/50 font-bold"
-          style={{ fontSize: "0.5rem", letterSpacing: "0.05em" }}
-        >
-          {boxNumber}
-        </span>
-        <span
-          className="font-mono text-muted/40"
-          style={{ fontSize: "0.45rem" }}
-        >
-          {new Date().toLocaleDateString("fr-FR")}
-        </span>
-      </div>
     </div>
   );
 };
 
-// ─── Fonctions utilitaires ────────────────────────────────────
+// ─── Fonctions utilitaires ────────────────────────────────
 function formatValue(value: LabelValue): string {
   if (Array.isArray(value)) {
     return value.filter((v) => v && v.toString().trim()).join(", ");

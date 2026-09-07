@@ -29,6 +29,7 @@ const DEFAULT_FONT_SIZE: FontSize = {
   labelSize: 14,
   valueSize: 18,
   qrSize: 50,
+  agenceSize: 32,
 };
 
 const DEFAULT_FONT_STYLE: FontStyle = {
