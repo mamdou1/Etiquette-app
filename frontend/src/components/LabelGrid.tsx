@@ -9,9 +9,18 @@ interface Props {
   cols: ColumnCount;
   size: LabelSize;
   boxField: string;
+  metaFields?: Array<{ name: string; label: string; field_type: string }>;
 }
 
-const LabelGrid: React.FC<Props> = ({ boxes, fields, visibleFields, cols, size, boxField }) => {
+const LabelGrid: React.FC<Props> = ({ 
+  boxes, 
+  fields, 
+  visibleFields, 
+  cols, 
+  size, 
+  boxField,
+  metaFields = [],
+}) => {
   const FIXED_COLS = 2;
 
   return (
@@ -34,20 +43,29 @@ const LabelGrid: React.FC<Props> = ({ boxes, fields, visibleFields, cols, size, 
             pageBreakInside: "avoid",
           }}
         >
-          {box.records.map((record, idx) => (
-            <LabelCard
-              key={idx}
-              record={record}
-              allFields={fields}
-              visibleFields={visibleFields}
-              size={size}
-              boxNumber={box.boxNumber}
-              isCaissier={
-                String(record.caissiers || "").trim() !== "" ||
-                String(record.caissier || "").trim() !== ""
-              }
-            />
-          ))}
+          {box.records.map((record, idx) => {
+            // ✅ Construire le record avec metaValues si présent
+            const recordWithMeta = {
+              ...record,
+              metaValues: (record as any).metaValues || {},
+            };
+            
+            return (
+              <LabelCard
+                key={idx}
+                record={recordWithMeta}
+                allFields={fields}
+                visibleFields={visibleFields}
+                size={size}
+                boxNumber={box.boxNumber}
+                isCaissier={
+                  String(record.caissiers || "").trim() !== "" ||
+                  String(record.caissier || "").trim() !== ""
+                }
+                metaFields={metaFields}
+              />
+            );
+          })}
         </div>
       ))}
     </div>

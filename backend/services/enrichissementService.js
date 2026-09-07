@@ -1,17 +1,43 @@
-const { AgenceModel, BoiteModel, ArchiveModel, TypeDocumentModel } = require("../models");
+const { AgenceModel, TypeDocumentModel, MetaFieldModel, MetaFieldValueModel } = require("../models");
 const { pool } = require("../config/database");
 
+// ─── ALIASES POUR LA DÉTECTION ──────────────────────────────────
 const FIELD_ALIASES = {
-  box: ["n de la boite", "numero de boite", "numero boite", "numero box", "box", "boite", "boxnumber"],
-  date: ["date de production", "date production"],
-  type: ["type de document", "type document"],
-  caissiers: ["nom des caissiers", "caissiers", "caissier"],
-  agence: ["nom de l agence", "nom agence", "agence"],
-  annee: ["annee", "annees"],
-  observation: ["observation", "observations"],
+  box: [
+    "n de la boite", "numero de boite", "numero boite", "numero box", 
+    "box", "boite", "boîte", "boxnumber", "n°", "nº", 
+    "reference", "référence", "ref", "id", "identifiant",
+    "no", "numéro", "numero", "n° de boite", "n° boite"
+  ],
+  annee: [
+    "annee", "année", "year", "année de production", "annees",
+    "années", "year of production", "production year"
+  ],
+  agence: [
+    "nom de l agence", "nom agence", "agence", "direction", "entite",
+    "nom de l'agence", "nom d'agence", "service", "departement",
+    "entité", "direction générale", "dg"
+  ],
+  type: [
+    "type de document", "type document", "type", "typ", "document type",
+    "nature", "nature du document", "categorie", "catégorie"
+  ],
+  date: [
+    "date de production", "date production", "date", "jour",
+    "date du document", "date d'édition", "production date"
+  ],
+  caissiers: [
+    "nom des caissiers", "caissiers", "caissier", "preparateur", "prep",
+    "agent", "responsable", "nom du caissier", "caissière"
+  ],
+  observation: [
+    "observation", "observations", "remarque", "note", "obs",
+    "commentaire", "commentaires", "info", "information"
+  ],
 };
 
-function normalizeHeader(value) {
+// ─── NORMALISATION ──────────────────────────────────────────────
+function normalizeText(value) {
   return String(value ?? "")
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
@@ -21,227 +47,342 @@ function normalizeHeader(value) {
     .trim();
 }
 
-function getRecordValue(record, aliases) {
-  for (const [key, value] of Object.entries(record)) {
-    const normalizedKey = normalizeHeader(key);
-    if (aliases.includes(normalizedKey) && String(value ?? "").trim()) {
-      return String(value).trim();
-    }
-  }
-  return "";
+function detectFieldType(value) {
+  const str = String(value).trim();
+  if (/^\d+$/.test(str)) return 'number';
+  if (/^\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4}$/.test(str)) return 'date';
+  if (/^\d+[\.,]\d+$/.test(str)) return 'number';
+  return 'text';
 }
 
-function getBoxNumber(record) {
-  const exactMatch = getRecordValue(record, FIELD_ALIASES.box);
-  if (exactMatch) return exactMatch;
-
-  for (const [key, value] of Object.entries(record)) {
-    const normalizedKey = normalizeHeader(key);
-    if ((normalizedKey.includes("boite") || normalizedKey.includes("box")) && String(value ?? "").trim()) {
-      return String(value).trim();
+// ─── DÉTECTION DES COLONNES ─────────────────────────────────────
+function detectColumn(headers, aliases) {
+  for (const header of headers) {
+    const normalized = normalizeText(header);
+    for (const alias of aliases) {
+      const normalizedAlias = normalizeText(alias);
+      if (normalized.includes(normalizedAlias) || normalizedAlias.includes(normalized)) {
+        return header;
+      }
     }
   }
-
-  return "";
+  return null;
 }
 
-function mergeArchivesByBox(archives) {
-  const grouped = new Map();
-  for (const archive of archives) {
-    if (!grouped.has(archive.numero_boite)) grouped.set(archive.numero_boite, []);
-    grouped.get(archive.numero_boite).push(archive);
-  }
+function detectBoxColumn(headers) {
+  let boxColumn = detectColumn(headers, FIELD_ALIASES.box);
+  if (boxColumn) return boxColumn;
 
-  return Array.from(grouped.values()).map((entries) => {
-    const merged = { ...entries[0] };
-    
-    // Fusionner les champs texte avec séparateur
-    const fieldsToMerge = ["caissiers", "type_document", "annee", "observation"];
-    for (const field of fieldsToMerge) {
-      const separator = field === "observation" ? " | " : ", ";
-      const values = [...new Set(entries.map((entry) => entry[field]).filter(Boolean))];
-      merged[field] = values.length > 0 ? values.join(separator) : "";
+  const keywords = ["boite", "boîte", "box", "n°", "numero", "réf", "ref", "id"];
+  let bestColumn = headers[0];
+  let bestScore = 0;
+
+  for (const header of headers) {
+    const normalized = normalizeText(header);
+    let score = 0;
+    for (const keyword of keywords) {
+      if (normalized.includes(keyword)) {
+        score += 10;
+      }
+    }
+    if (normalized.length < 15) {
+      score += 3;
+    }
+    if (score > bestScore) {
+      bestScore = score;
+      bestColumn = header;
+    }
+  }
+  return bestColumn;
+}
+
+function detectAnneeColumn(headers) {
+  return detectColumn(headers, FIELD_ALIASES.annee);
+}
+
+function detectAgenceColumn(headers) {
+  return detectColumn(headers, FIELD_ALIASES.agence);
+}
+
+function detectTypeColumn(headers) {
+  return detectColumn(headers, FIELD_ALIASES.type);
+}
+
+function detectDateColumn(headers) {
+  return detectColumn(headers, FIELD_ALIASES.date);
+}
+
+function detectCaissiersColumn(headers) {
+  return detectColumn(headers, FIELD_ALIASES.caissiers);
+}
+
+function detectObservationColumn(headers) {
+  return detectColumn(headers, FIELD_ALIASES.observation);
+}
+
+// ─── MATCHING DES MÉTADONNÉES ──────────────────────────────────
+function findMatchingMetaField(columnName, metaFields) {
+  const normalizedColumn = normalizeText(columnName);
+  let bestMatch = null;
+  let bestScore = 0;
+
+  for (const mf of metaFields) {
+    const normalizedMF = normalizeText(mf.name);
+    if (normalizedColumn.includes(normalizedMF) || normalizedMF.includes(normalizedColumn)) {
+      const score = Math.max(
+        normalizedColumn.length / (normalizedMF.length + 1),
+        normalizedMF.length / (normalizedColumn.length + 1)
+      );
+      if (score > bestScore) {
+        bestScore = score;
+        bestMatch = mf;
+      }
+    }
+  }
+  return bestMatch;
+}
+
+// ─── REGROUPEMENT PAR BOÎTE ─────────────────────────────────────
+function groupByBox(records, boxColumn, anneeColumn, metaFields) {
+  const groups = new Map();
+
+  for (const record of records) {
+    const boxNumber = String(record[boxColumn] || "").trim();
+    if (!boxNumber) continue;
+
+    const annee = anneeColumn ? String(record[anneeColumn] || "").trim() : "Sans année";
+
+    const metaValues = {};
+    const usedMetaFields = new Set();
+
+    for (const mf of metaFields) {
+      let value = record[mf.name] || record[mf.label] || "";
+      if (value && String(value).trim()) {
+        metaValues[mf.name] = String(value).trim();
+        usedMetaFields.add(mf.id);
+      }
     }
 
-    // Fusionner les données supplémentaires (JSON)
-    if (entries.some(e => e.donnees_supplementaires)) {
-      const mergedData = {};
-      for (const entry of entries) {
-        if (entry.donnees_supplementaires) {
-          Object.assign(mergedData, entry.donnees_supplementaires);
+    for (const mf of metaFields) {
+      if (usedMetaFields.has(mf.id)) continue;
+      
+      for (const [key, value] of Object.entries(record)) {
+        if (normalizeText(key) === normalizeText(mf.name) || 
+            normalizeText(key) === normalizeText(mf.label)) {
+          if (value && String(value).trim()) {
+            metaValues[mf.name] = String(value).trim();
+            usedMetaFields.add(mf.id);
+            break;
+          }
         }
       }
-      merged.donnees_supplementaires = mergedData;
     }
 
-    return merged;
-  });
-}
-
-const enrichirEtStocker = async (records) => {
-  console.log(`📥 enrichirEtStocker: ${records.length} lignes reçues`);
-
-  // ─── 1. Caches et statistiques ──────────────────────────────
-  const agencyCache = new Map();
-  const typeCache = new Map();
-  const agenceTrouvees = new Set();
-  const nouvellesAgences = new Set();
-  const typesTrouves = new Set();
-  const nouveauxTypes = new Set();
-  const relationsCreees = [];
-  const enriched = [];
-  const archivesToSave = [];
-  const allFields = new Set();
-  let doublonsIgnores = 0;
-
-  // ─── 2. Détecter tous les champs du fichier ──────────────────
-  if (records.length > 0) {
-    Object.keys(records[0]).forEach(key => allFields.add(key));
-  }
-
-  // ─── 3. Traiter chaque ligne ────────────────────────────────
-  for (const record of records) {
-    const boxNumber = getBoxNumber(record);
-    if (!boxNumber) {
-      console.warn("⚠️ Ligne ignorée : numéro de boîte introuvable");
-      continue;
-    }
-
-    // ─── 3a. Gérer l'agence ──────────────────────────────────
-    const agenceNom = getRecordValue(record, FIELD_ALIASES.agence) || "Sans agence";
-    let agence = agencyCache.get(agenceNom);
-    if (!agence) {
-      const existing = await AgenceModel.findByNom(agenceNom);
-      if (existing) {
-        agence = existing;
-        agenceTrouvees.add(agenceNom);
-      } else {
-        const code = agenceNom.substring(0, 4).toUpperCase();
-        agence = await AgenceModel.findOrCreate(agenceNom, code);
-        nouvellesAgences.add(agenceNom);
-        console.log(`✅ Agence créée: ${agenceNom} (${code})`);
-      }
-      agencyCache.set(agenceNom, agence);
-    }
-
-    // ─── 3b. Gérer le type de document ──────────────────────
-    const typeNom = getRecordValue(record, FIELD_ALIASES.type) || "Non défini";
-    let typeId = typeCache.get(typeNom);
-    if (typeId === undefined) {
-      const existing = await TypeDocumentModel.findByNom(typeNom);
-      if (existing) {
-        typeId = existing.id;
-        typesTrouves.add(typeNom);
-      } else {
-        const code = typeNom.substring(0, 3).toUpperCase();
-        const newType = await TypeDocumentModel.create({
-          nom: typeNom,
-          code: code,
-          description: typeNom,
-          active: true
-        });
-        typeId = newType.id;
-        nouveauxTypes.add(typeNom);
-        console.log(`✅ Type créé: ${typeNom} (${code})`);
-      }
-      typeCache.set(typeNom, typeId);
-    }
-
-    // ─── 3c. Créer la relation agence ↔ type ──────────────
-    const [existingRelation] = await pool.execute(
-      'SELECT * FROM agence_type_documents WHERE agence_id = ? AND type_document_id = ?',
-      [agence.id, typeId]
-    );
-
-    if (existingRelation.length === 0) {
-      await pool.execute(
-        'INSERT IGNORE INTO agence_type_documents (agence_id, type_document_id) VALUES (?, ?)',
-        [agence.id, typeId]
-      );
-      relationsCreees.push({ agence: agenceNom, type: typeNom });
-      console.log(`🔗 Relation créée: ${agenceNom} ↔ ${typeNom}`);
-    }
-
-    // ─── 3d. Extraire les données supplémentaires ──────────
-    const extraData = {};
-    const knownFields = [
-      ...Object.values(FIELD_ALIASES).flat(),
-      "numero_boite", "boxNumber", "box"
-    ];
-    
-    for (const [key, value] of Object.entries(record)) {
-      const normalizedKey = normalizeHeader(key);
-      const isKnown = knownFields.some(alias => 
-        normalizedKey.includes(alias) || alias.includes(normalizedKey)
-      );
+    for (const mf of metaFields) {
+      if (usedMetaFields.has(mf.id)) continue;
       
-      if (!isKnown && value && String(value).trim()) {
-        extraData[key] = String(value).trim();
+      const match = findMatchingMetaField(mf.name, metaFields);
+      if (match && !usedMetaFields.has(match.id)) {
+        for (const [key, value] of Object.entries(record)) {
+          if (normalizeText(key) === normalizeText(mf.name)) {
+            if (value && String(value).trim()) {
+              metaValues[mf.name] = String(value).trim();
+              usedMetaFields.add(mf.id);
+              break;
+            }
+          }
+        }
       }
     }
 
-    // ─── 3e. Construire l'archive ────────────────────────────
-    const archive = {
-      numero_boite: boxNumber.substring(0, 50),
-      agence_id: agence.id,
-      agence_nom: agenceNom.substring(0, 100),
-      date_production: getRecordValue(record, FIELD_ALIASES.date).substring(0, 20) || null,
-      type_document: typeNom.substring(0, 100),
-      type_document_id: typeId,
-      caissiers: getRecordValue(record, FIELD_ALIASES.caissiers).substring(0, 255) || "",
-      annee: getRecordValue(record, FIELD_ALIASES.annee).substring(0, 10) || "",
-      observation: getRecordValue(record, FIELD_ALIASES.observation).substring(0, 255) || "",
-      source: "upload",
-      donnees_supplementaires: Object.keys(extraData).length > 0 ? extraData : null
-    };
+    for (const mf of metaFields) {
+      if (!metaValues[mf.name]) {
+        metaValues[mf.name] = "";
+      }
+    }
 
-    // ─── 3f. Sauvegarder dans boites (si nouvelle) ──────────
-    const existingBox = await BoiteModel.findByNumero(archive.numero_boite);
-    if (!existingBox) {
-      await BoiteModel.create({
-        numero: archive.numero_boite,
-        agence_id: archive.agence_id,
-        date_production: archive.date_production,
-        type_document: archive.type_document,
-        caissiers: archive.caissiers,
-        annee: archive.annee,
-        observation: archive.observation,
+    const key = `${boxNumber}|${annee}`;
+    if (!groups.has(key)) {
+      groups.set(key, {
+        numero_boite: boxNumber,
+        annee: annee,
+        metaValues: metaValues,
+        count: 0,
       });
     }
+    groups.get(key).count++;
+  }
 
-    archivesToSave.push(archive);
-    enriched.push({ 
-      ...record, 
-      Source: "Fichier uploadé",
-      agence_id: agence.id,
-      type_document_id: typeId
+  return Array.from(groups.values());
+}
+
+// ─── FONCTION PRINCIPALE ────────────────────────────────────────
+const enrichirEtStocker = async (records, agenceId, typeDocumentId) => {
+  console.log(`📥 enrichirEtStocker: ${records.length} lignes reçues`);
+  console.log(`📌 Agence: ${agenceId}, Type: ${typeDocumentId}`);
+
+  if (!records || records.length === 0) {
+    return { enriched: [], savedCount: 0, message: 'Aucune donnée' };
+  }
+
+  // ─── 1. Vérifier l'agence et le type ──────────────────────────
+  const agence = await AgenceModel.findById(agenceId);
+  if (!agence) {
+    throw new Error('Agence non trouvée');
+  }
+
+  const typeDoc = await TypeDocumentModel.findById(typeDocumentId);
+  if (!typeDoc) {
+    throw new Error('Type de document non trouvé');
+  }
+
+  // ─── 2. Détecter les colonnes ─────────────────────────────────
+  const headers = Object.keys(records[0]);
+  console.log('📋 Colonnes détectées:', headers);
+
+  const boxColumn = detectBoxColumn(headers);
+  const anneeColumn = detectAnneeColumn(headers);
+  const agenceColumn = detectAgenceColumn(headers);
+  const typeColumn = detectTypeColumn(headers);
+
+  console.log(`🔍 Box: ${boxColumn}`);
+  console.log(`🔍 Année: ${anneeColumn}`);
+  console.log(`🔍 Agence: ${agenceColumn}`);
+  console.log(`🔍 Type: ${typeColumn}`);
+
+  if (!boxColumn) {
+    throw new Error('Impossible de détecter la colonne "N° Boîte"');
+  }
+
+  // ─── ✅ 3. VALIDATION : Vérifier que les données correspondent ──
+  // Vérifier l'agence
+  if (agenceColumn) {
+    const agenceValues = records.map(r => String(r[agenceColumn] || "").trim());
+    const uniqueAgences = [...new Set(agenceValues)].filter(Boolean);
+    
+    if (uniqueAgences.length > 0) {
+      const allMatchAgence = uniqueAgences.every(a => 
+        normalizeText(a) === normalizeText(agence.nom)
+      );
+      
+      if (!allMatchAgence) {
+        throw new Error(
+          `❌ L'agence dans le fichier (${uniqueAgences.join(', ')}) ne correspond pas à l'agence sélectionnée (${agence.nom})`
+        );
+      }
+      console.log(`✅ Validation agence OK: ${agence.nom}`);
+    }
+  }
+
+  // Vérifier le type
+  if (typeColumn) {
+    const typeValues = records.map(r => String(r[typeColumn] || "").trim());
+    const uniqueTypes = [...new Set(typeValues)].filter(Boolean);
+    
+    if (uniqueTypes.length > 0) {
+      const allMatchType = uniqueTypes.every(t => 
+        normalizeText(t) === normalizeText(typeDoc.nom)
+      );
+      
+      if (!allMatchType) {
+        throw new Error(
+          `❌ Le type dans le fichier (${uniqueTypes.join(', ')}) ne correspond pas au type sélectionné (${typeDoc.nom})`
+        );
+      }
+      console.log(`✅ Validation type OK: ${typeDoc.nom}`);
+    }
+  }
+
+  // ─── 4. Récupérer les MetaFields du type ──────────────────────
+  let metaFields = await MetaFieldModel.findByType(typeDocumentId);
+  console.log(`📋 ${metaFields.length} MetaFields existants`);
+
+  // ─── 5. Créer les MetaFields manquants ────────────────────────
+  const mandatoryColumns = [boxColumn, anneeColumn];
+  
+  const columnsToCreate = headers.filter(h => {
+    const normalized = normalizeText(h);
+    const isMandatory = mandatoryColumns.some(k => {
+      const normalizedK = normalizeText(k);
+      return normalized === normalizedK;
+    });
+    return !isMandatory;
+  });
+
+  console.log(`📋 Colonnes à créer comme MetaFields: ${columnsToCreate}`);
+
+  let createdCount = 0;
+  for (const col of columnsToCreate) {
+    const existing = metaFields.find(mf => normalizeText(mf.name) === normalizeText(col));
+    if (!existing) {
+      const sampleValue = records[0][col] || "";
+      const newField = await MetaFieldModel.create({
+        type_document_id: typeDocumentId,
+        name: col,
+        label: col,
+        field_type: detectFieldType(sampleValue),
+        position: metaFields.length + createdCount + 1,
+        visible: true,
+        required: false,
+      });
+      metaFields.push(newField);
+      createdCount++;
+      console.log(`📝 Nouveau MetaField créé: ${col}`);
+    }
+  }
+
+  if (createdCount > 0) {
+    console.log(`✅ ${createdCount} nouveau(x) MetaField(s) créé(s)`);
+  }
+
+  // ─── 6. Regrouper par boîte ──────────────────────────────────
+  const grouped = groupByBox(records, boxColumn, anneeColumn, metaFields);
+  console.log(`📦 ${records.length} lignes → ${grouped.length} boîtes`);
+
+  // ─── 7. Sauvegarder dans meta_field_values ──────────────────
+  let savedCount = 0;
+  const enriched = [];
+
+  for (const group of grouped) {
+    for (const mf of metaFields) {
+      const value = group.metaValues[mf.name] || "";
+      await MetaFieldValueModel.upsert({
+        agence_id: agenceId,
+        type_document_id: typeDocumentId,
+        meta_field_id: mf.id,
+        numero_boite: group.numero_boite,
+        annee: group.annee,
+        value: value,
+      });
+      savedCount++;
+    }
+    enriched.push({
+      numero_boite: group.numero_boite,
+      annee: group.annee,
+      metaValues: group.metaValues,
+      count: group.count,
     });
   }
 
-  // ─── 4. Regrouper par boîte (fusion) ───────────────────────
-  const uniqueArchives = mergeArchivesByBox(archivesToSave);
-  console.log(`📦 ${archivesToSave.length} lignes → ${uniqueArchives.length} boîte(s) unique(s)`);
+  console.log(`✅ ${savedCount} valeurs sauvegardées`);
 
-  // ─── 5. Sauvegarder dans archives (INSERT IGNORE) ──────────
-  const savedCount = await ArchiveModel.saveMany(uniqueArchives);
-  
-  // Calculer les doublons ignorés
-  doublonsIgnores = Math.max(0, uniqueArchives.length - savedCount);
-
-  // ─── 6. Retourner les statistiques ──────────────────────────
   return {
     enriched,
     savedCount,
-    doublonsIgnores,
-    agenceTrouvees: [...agenceTrouvees],
-    nouvellesAgences: [...nouvellesAgences],
-    typesTrouves: [...typesTrouves],
-    nouveauxTypes: [...nouveauxTypes],
-    relationsCreees: relationsCreees,
     totalLignes: records.length,
-    totalBoitesUniques: uniqueArchives.length,
-    champsDetectes: [...allFields],
-    isReimport: doublonsIgnores > 0
+    totalBoites: grouped.length,
+    metaFieldsCrees: createdCount,
+    metaFields: metaFields,
+    agenceTrouvees: [agence.nom],
+    typesTrouves: [typeDoc.nom],
+    champsDetectes: headers,
+    // ✅ AJOUT : Champs pour le frontend
+    fields: metaFields.map(mf => mf.name),
+    fieldLabels: metaFields.reduce((acc, mf) => {
+      acc[mf.name] = mf.label || mf.name;
+      return acc;
+    }, {}),
+    message: `${grouped.length} boîtes sauvegardées avec ${metaFields.length} champs chacun`,
   };
 };
 

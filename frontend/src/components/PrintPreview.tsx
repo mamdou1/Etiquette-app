@@ -10,56 +10,84 @@ interface Props {
   cols: ColumnCount;
   size: LabelSize;
   boxField: string;
+  metaFields?: Array<{ name: string; label: string; field_type: string }>;
 }
 
-const PrintPreview: React.FC<Props> = ({ 
-  boxes, 
-  fields, 
-  visibleFields, 
-  cols, 
-  size, 
-  boxField 
+type FlatRecord = {
+  record: any;
+  boxNumber: string | number;
+};
+
+const PrintPreview: React.FC<Props> = ({
+  boxes,
+  fields,
+  visibleFields,
+  cols,
+  size,
+  boxField,
+  metaFields = [],
 }) => {
   const { fontSize, fontStyle } = useSettings();
-  
+
   const totalBoxes = boxes.length;
   const totalRecords = boxes.reduce((sum, b) => sum + b.records.length, 0);
-  
-  // 4 étiquettes par page (2×2)
-  const itemsPerPage = 4;
-  const totalPages = Math.ceil(totalBoxes / itemsPerPage);
 
-  const getBoxesForPage = (pageIndex: number) => {
+  const itemsPerPage = 4; // 4 étiquettes par page A4
+  // FIX 1: On aplatit tous les records pour ne rien perdre
+  const allRecords: FlatRecord[] = boxes.flatMap((box) =>
+    box.records.map((record) => ({
+      record: {
+        ...record,
+        metaValues: (record as any).metaValues || { ...record }, // FIX ICI
+      },
+      boxNumber: box.boxNumber,
+    })),
+  );
+  const totalPages = Math.ceil(allRecords.length / itemsPerPage);
+
+  const getRecordsForPage = (pageIndex: number) => {
     const start = pageIndex * itemsPerPage;
-    const end = Math.min(start + itemsPerPage, totalBoxes);
-    return boxes.slice(start, end);
+    const end = Math.min(start + itemsPerPage, allRecords.length);
+    return allRecords.slice(start, end);
   };
 
   return (
     <div className="flex-1 p-8 overflow-y-auto print-container bg-[#f0ede8]">
-      {/* Stats (masquées à l'impression) */}
-      <div className="no-print flex flex-wrap gap-6 mb-5 font-mono text-xs text-muted">
-        <span><strong className="text-primary">{totalBoxes}</strong> boîtes</span>
-        <span><strong className="text-primary">{totalRecords}</strong> enregistrements</span>
-        <span><strong className="text-primary">{totalPages}</strong> page{totalPages > 1 ? "s" : ""}</span>
-        <span><strong className="text-primary">{fields.length}</strong> champs</span>
+      <div className="no-print flex-wrap gap-6 mb-5 font-mono text-xs text-muted">
+        <span>
+          <strong className="text-primary">{totalBoxes}</strong> boîtes
+        </span>
+        <span>
+          <strong className="text-primary">{totalRecords}</strong>{" "}
+          enregistrements
+        </span>
+        <span>
+          <strong className="text-primary">{totalPages}</strong> page
+          {totalPages > 1 ? "s" : ""}
+        </span>
+        <span>
+          <strong className="text-primary">{fields.length}</strong> champs
+        </span>
         <span className="text-accent">
-          Label: {fontSize.labelSize}px | Valeur: {fontSize.valueSize}px | QR: {fontSize.qrSize}px
-          {fontStyle.labelWeight === 'bold' && ' | Label gras'}
-          {fontStyle.valueWeight === 'bold' && ' | Valeur gras'}
-          {fontStyle.labelItalic && ' | Label italique'}
-          {fontStyle.valueItalic && ' | Valeur italique'}
+          Label: {fontSize.labelSize}px | Valeur: {fontSize.valueSize}px | QR:{" "}
+          {fontSize.qrSize}px
+          {fontStyle.labelWeight === "bold" && " | Label gras"}
+          {fontStyle.valueWeight === "bold" && " | Valeur gras"}
+          {fontStyle.labelItalic && " | Label italique"}
+          {fontStyle.valueItalic && " | Valeur italique"}
         </span>
       </div>
 
-      {/* Générer une page A4 par groupe de 4 étiquettes */}
       {Array.from({ length: totalPages }).map((_, pageIndex) => {
-        const pageBoxes = getBoxesForPage(pageIndex);
-        
+        const pageRecords = getRecordsForPage(pageIndex);
+
         return (
-          <div 
-            key={pageIndex} 
+          <div
+            key={pageIndex}
             className="a4-sheet a4-landscape mx-auto mb-6"
+            style={{
+              pageBreakAfter: pageIndex < totalPages - 1 ? "always" : "avoid", // FIX: Force le saut de page
+            }}
           >
             <div
               className="label-grid"
@@ -67,43 +95,40 @@ const PrintPreview: React.FC<Props> = ({
                 display: "grid",
                 gridTemplateColumns: "repeat(2, 1fr)",
                 gridTemplateRows: "repeat(2, 1fr)",
-                gap: "16px",
+                gap: "3mm",
                 width: "100%",
-                height: "100%",
-                minHeight: "680px",
+                height: "100%", // FIX: Prend 100% de la hauteur de la feuille A4
+                minHeight: "unset",
               }}
             >
-              {pageBoxes.map((box) => (
+              {pageRecords.map((item, idx) => (
                 <div
-                  key={box.boxNumber}
+                  key={`${item.boxNumber}-${idx}-${pageIndex}`}
                   style={{
                     breakInside: "avoid",
                     pageBreakInside: "avoid",
+                    height: "100%",
                   }}
                 >
-                  {box.records.map((record, idx) => (
-                    <LabelCard
-                      key={idx}
-                      record={record}
-                      allFields={fields}
-                      visibleFields={visibleFields}
-                      size={size}
-                      boxNumber={box.boxNumber}
-                      isCaissier={
-                        String(record.caissiers || "").trim() !== "" ||
-                        String(record.caissier || "").trim() !== ""
-                      }
-                    />
-                  ))}
+                  <LabelCard
+                    record={item.record}
+                    allFields={fields}
+                    visibleFields={visibleFields}
+                    size={size}
+                    boxNumber={String(item.boxNumber)}
+                    isCaissier={
+                      String(item.record.caissiers || "").trim() !== "" ||
+                      String(item.record.caissier || "").trim() !== ""
+                    }
+                    metaFields={metaFields}
+                  />
                 </div>
               ))}
-              
-              {/* Cases vides si moins de 4 sur la dernière page */}
-              {pageBoxes.length < 4 && 
-                Array.from({ length: 4 - pageBoxes.length }).map((_, i) => (
+
+              {pageRecords.length < 4 &&
+                Array.from({ length: 4 - pageRecords.length }).map((_, i) => (
                   <div key={`empty-${i}`} style={{ visibility: "hidden" }} />
-                ))
-              }
+                ))}
             </div>
           </div>
         );

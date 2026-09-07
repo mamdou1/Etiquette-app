@@ -1,8 +1,6 @@
-const { MetaFieldModel } = require('../models');
-const { TypeDocumentModel } = require('../models');
+const { MetaFieldModel, TypeDocumentModel } = require('../models');
 
 // ─── GET /api/types-document/:typeId/meta-fields ──────────────
-// Récupérer tous les champs d'un type
 const getByType = async (req, res) => {
   try {
     const typeId = parseInt(req.params.typeId);
@@ -32,7 +30,6 @@ const getByType = async (req, res) => {
 };
 
 // ─── GET /api/meta-fields/:id ──────────────────────────────────
-// Récupérer un champ par son ID
 const getById = async (req, res) => {
   try {
     const id = parseInt(req.params.id);
@@ -59,7 +56,6 @@ const getById = async (req, res) => {
 };
 
 // ─── POST /api/types-document/:typeId/meta-fields ─────────────
-// Créer un champ de métadonnée pour un type
 const create = async (req, res) => {
   try {
     const typeId = parseInt(req.params.typeId);
@@ -116,8 +112,76 @@ const create = async (req, res) => {
   }
 };
 
+// ─── ✅ NOUVEAU : POST /api/types-document/:typeId/meta-fields/batch ──
+const batchCreate = async (req, res) => {
+  try {
+    const typeId = parseInt(req.params.typeId);
+    if (isNaN(typeId)) {
+      return res.status(400).json({ success: false, message: 'ID de type invalide' });
+    }
+
+    const type = await TypeDocumentModel.findById(typeId);
+    if (!type) {
+      return res.status(404).json({ success: false, message: 'Type non trouvé' });
+    }
+
+    const { fields = [] } = req.body;
+
+    if (!fields || !Array.isArray(fields) || fields.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'fields doit être un tableau non vide',
+      });
+    }
+
+    const createdFields = [];
+    let position = 1;
+
+    for (const fieldData of fields) {
+      if (!fieldData.name || !fieldData.label) {
+        continue;
+      }
+
+      const field = await MetaFieldModel.create({
+        type_document_id: typeId,
+        name: fieldData.name.trim().toLowerCase().replace(/\s/g, "_"),
+        label: fieldData.label.trim(),
+        field_type: fieldData.field_type || 'text',
+        required: fieldData.required || false,
+        visible: fieldData.visible !== undefined ? fieldData.visible : true,
+        position: fieldData.position || position,
+        placeholder: fieldData.placeholder || null,
+        description: fieldData.description || null,
+        default_value: fieldData.default_value || null,
+      });
+
+      createdFields.push(field);
+      position++;
+    }
+
+    if (createdFields.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Aucun champ valide à créer',
+      });
+    }
+
+    res.status(201).json({
+      success: true,
+      count: createdFields.length,
+      data: createdFields,
+      message: `${createdFields.length} champ(s) créé(s) avec succès`,
+    });
+  } catch (error) {
+    console.error('❌ batchCreate metaField error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Erreur lors de la création en batch',
+    });
+  }
+};
+
 // ─── PUT /api/meta-fields/:id ──────────────────────────────────
-// Mettre à jour un champ
 const update = async (req, res) => {
   try {
     const id = parseInt(req.params.id);
@@ -161,7 +225,6 @@ const update = async (req, res) => {
 };
 
 // ─── DELETE /api/meta-fields/:id ──────────────────────────────
-// Supprimer un champ (soft delete)
 const remove = async (req, res) => {
   try {
     const id = parseInt(req.params.id);
@@ -233,6 +296,7 @@ module.exports = {
   getByType,
   getById,
   create,
+  batchCreate,
   update,
   remove,
   removePermanent,

@@ -31,6 +31,7 @@ interface Props {
   onToggleYear: (year: string) => void;
   onPrint: () => void;
   onReset: () => void;
+  metaFields?: Array<{ id: number; name: string; label: string; field_type: string }>; // ✅ Ajout
 }
 
 const SettingsPanel: React.FC<Props> = ({
@@ -43,6 +44,7 @@ const SettingsPanel: React.FC<Props> = ({
   onToggleYear,
   onPrint,
   onReset,
+  metaFields = [], // ✅ Ajout
 }) => {
   const {
     cols,
@@ -66,7 +68,6 @@ const SettingsPanel: React.FC<Props> = ({
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
-  // ─── Drag & Drop Handlers ──────────────────────────────────
   const handleDragStart = (e: React.DragEvent, index: number) => {
     setDragIndex(index);
     e.dataTransfer.effectAllowed = "move";
@@ -104,40 +105,44 @@ const SettingsPanel: React.FC<Props> = ({
     toggleField(key);
   };
 
+  // ✅ Fonction pour obtenir le label d'un champ
+  const getFieldLabel = (fieldName: string): string => {
+    const metaField = metaFields.find(mf => mf.name === fieldName);
+    return metaField?.label || fieldName;
+  };
+
+  // ✅ Fonction pour obtenir le type d'un champ
+  const getFieldType = (fieldName: string): string => {
+    const metaField = metaFields.find(mf => mf.name === fieldName);
+    return metaField?.field_type || 'text';
+  };
+
+  // ✅ Fonction pour vérifier si un champ est de type date
+  const isDateFieldType = (fieldName: string): boolean => {
+    const fieldType = getFieldType(fieldName);
+    return fieldType === 'date' || isDateField(fieldName);
+  };
+
   return (
     <aside className="no-print w-80 min-w-[320px] bg-white border-r border-border flex flex-col gap-4 p-6 overflow-y-auto h-screen sticky top-0">
-      {/* ─── Section 01 : Fichier ───────────────────────────── */}
       <div>
         <p className="font-mono text-[10px] uppercase tracking-widest text-muted mb-3">
           01 - Fichier
         </p>
         <div className="flex items-center gap-2 bg-accent-light border border-accent px-3 py-2 mb-2">
-          <svg
-            width="13"
-            height="13"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="#e63946"
-            strokeWidth="2.5"
-          >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#e63946" strokeWidth="2.5">
             <polyline points="20 6 9 17 4 12" />
           </svg>
-          <span className="font-mono text-accent text-xs truncate">
-            {filename}
-          </span>
+          <span className="font-mono text-accent text-xs truncate">{filename}</span>
         </div>
         <p className="font-mono text-xs text-muted mb-3">
           {total} / {sourceTotal} boîte{sourceTotal > 1 ? "s" : ""}
         </p>
-        <button
-          onClick={onReset}
-          className="w-full border border-border text-muted text-xs font-mono py-2 hover:border-muted transition-colors"
-        >
+        <button onClick={onReset} className="w-full border border-border text-muted text-xs font-mono py-2 hover:border-muted transition-colors">
           Changer de fichier
         </button>
       </div>
 
-      {/* ─── Section 02 : Années ────────────────────────────── */}
       {availableYears.length > 1 && (
         <div>
           <div className="flex items-center justify-between gap-2 mb-3">
@@ -145,10 +150,7 @@ const SettingsPanel: React.FC<Props> = ({
               02 - Années à imprimer
             </p>
             {selectedYears.length > 0 && (
-              <button
-                onClick={() => selectedYears.forEach(onToggleYear)}
-                className="font-mono text-[10px] text-accent hover:underline"
-              >
+              <button onClick={() => selectedYears.forEach(onToggleYear)} className="font-mono text-[10px] text-accent hover:underline">
                 Toutes
               </button>
             )}
@@ -177,58 +179,50 @@ const SettingsPanel: React.FC<Props> = ({
         </div>
       )}
 
-      {/* ─── Section 03 : Filtres ───────────────────────────── */}
       <div>
         <div className="flex items-center justify-between gap-2 mb-3">
           <p className="font-mono text-[10px] uppercase tracking-widest text-muted">
             03 - Filtres
           </p>
           {activeFilters && (
-            <button
-              onClick={clearFilters}
-              className="font-mono text-[10px] text-accent hover:underline"
-            >
+            <button onClick={clearFilters} className="font-mono text-[10px] text-accent hover:underline">
               Effacer
             </button>
           )}
         </div>
-
         <div className="flex flex-col gap-3 max-h-48 overflow-y-auto">
           {fields.map((field) => {
             const filter = filters[field] ?? {};
+            const fieldLabel = getFieldLabel(field);
+            const isDate = isDateFieldType(field);
+            
             return (
               <div key={field} className="border border-border bg-surface p-3">
                 <label className="block font-mono text-[11px] font-medium text-primary mb-2">
-                  {field}
+                  {fieldLabel}
                 </label>
-                {isDateField(field) ? (
+                {isDate ? (
                   <div className="grid grid-cols-2 gap-2">
                     <input
                       type="date"
                       value={filter.from ?? ""}
-                      onChange={(event) =>
-                        updateFilter(field, "from", event.target.value)
-                      }
+                      onChange={(event) => updateFilter(field, "from", event.target.value)}
                       className="w-full min-w-0 border border-border bg-white px-2 py-2 font-mono text-[11px] outline-none focus:border-accent"
-                      title={`Date de debut pour ${field}`}
+                      title={`Date de debut pour ${fieldLabel}`}
                     />
                     <input
                       type="date"
                       value={filter.to ?? ""}
-                      onChange={(event) =>
-                        updateFilter(field, "to", event.target.value)
-                      }
+                      onChange={(event) => updateFilter(field, "to", event.target.value)}
                       className="w-full min-w-0 border border-border bg-white px-2 py-2 font-mono text-[11px] outline-none focus:border-accent"
-                      title={`Date de fin pour ${field}`}
+                      title={`Date de fin pour ${fieldLabel}`}
                     />
                   </div>
                 ) : (
                   <input
                     type="text"
                     value={filter.value ?? ""}
-                    onChange={(event) =>
-                      updateFilter(field, "value", event.target.value)
-                    }
+                    onChange={(event) => updateFilter(field, "value", event.target.value)}
                     placeholder="Contient..."
                     className="w-full border border-border bg-white px-2 py-2 font-mono text-xs outline-none focus:border-accent"
                   />
@@ -239,38 +233,25 @@ const SettingsPanel: React.FC<Props> = ({
         </div>
       </div>
 
-      {/* ─── Section 04 : Champs affichés AVEC DRAG & DROP ── */}
       <div>
-        <div 
-          className="flex items-center justify-between gap-2 mb-3 cursor-pointer"
-          onClick={() => setShowFields(!showFields)}
-        >
+        <div className="flex items-center justify-between gap-2 mb-3 cursor-pointer" onClick={() => setShowFields(!showFields)}>
           <p className="font-mono text-[10px] uppercase tracking-widest text-muted">
             04 - Champs affichés
           </p>
-          <svg
-            width="12"
-            height="12"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            className={`transform transition-transform ${showFields ? "rotate-180" : ""}`}
-          >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={`transform transition-transform ${showFields ? "rotate-180" : ""}`}>
             <polyline points="6 9 12 15 18 9" />
           </svg>
         </div>
 
         {showFields && (
           <div className="border border-border p-3 bg-surface max-h-48 overflow-y-auto">
-            <p className="font-mono text-[9px] text-muted mb-2">
-              Glissez-déposez pour réorganiser
-            </p>
+            <p className="font-mono text-[9px] text-muted mb-2">Glissez-déposez pour réorganiser</p>
             <div className="flex flex-col gap-1">
-              {/* Champs visibles (avec drag) */}
               {visibleFields.map((key, index) => {
                 const isDragging = dragIndex === index;
                 const isDragOver = dragOverIndex === index;
+                const fieldLabel = getFieldLabel(key);
+                
                 return (
                   <div
                     key={`visible-${key}`}
@@ -288,13 +269,7 @@ const SettingsPanel: React.FC<Props> = ({
                     `}
                   >
                     <div className="flex items-center gap-2">
-                      <svg
-                        width="10"
-                        height="10"
-                        viewBox="0 0 12 12"
-                        fill="#9e9b95"
-                        className="flex-shrink-0 opacity-40"
-                      >
+                      <svg width="10" height="10" viewBox="0 0 12 12" fill="#9e9b95" className="flex-shrink-0 opacity-40">
                         <circle cx="3" cy="2" r="1" />
                         <circle cx="7" cy="2" r="1" />
                         <circle cx="3" cy="5" r="1" />
@@ -302,17 +277,10 @@ const SettingsPanel: React.FC<Props> = ({
                         <circle cx="3" cy="8" r="1" />
                         <circle cx="7" cy="8" r="1" />
                       </svg>
-                      <span className="font-mono text-xs font-medium">{key}</span>
+                      <span className="font-mono text-xs font-medium">{fieldLabel}</span>
                     </div>
                     <div className="w-4 h-4 border border-accent bg-accent flex items-center justify-center flex-shrink-0">
-                      <svg
-                        width="9"
-                        height="9"
-                        viewBox="0 0 12 12"
-                        fill="none"
-                        stroke="white"
-                        strokeWidth="2.5"
-                      >
+                      <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="white" strokeWidth="2.5">
                         <polyline points="2 6 5 9 10 3" />
                       </svg>
                     </div>
@@ -320,27 +288,28 @@ const SettingsPanel: React.FC<Props> = ({
                 );
               })}
 
-              {/* Champs non-visibles (sans drag) */}
               {fields
                 .filter((f) => !visibleFields.includes(f))
-                .map((key) => (
-                  <div
-                    key={`hidden-${key}`}
-                    onClick={() => toggleField(key)}
-                    className="flex items-center justify-between px-3 py-2 border cursor-pointer select-none transition-colors bg-white border-border hover:bg-[#f0eeea]"
-                  >
-                    <span className="font-mono text-xs font-medium text-muted">{key}</span>
-                    <div className="w-4 h-4 border border-border flex items-center justify-center flex-shrink-0">
-                      <span className="text-muted text-[10px]">+</span>
+                .map((key) => {
+                  const fieldLabel = getFieldLabel(key);
+                  return (
+                    <div
+                      key={`hidden-${key}`}
+                      onClick={() => toggleField(key)}
+                      className="flex items-center justify-between px-3 py-2 border cursor-pointer select-none transition-colors bg-white border-border hover:bg-[#f0eeea]"
+                    >
+                      <span className="font-mono text-xs font-medium text-muted">{fieldLabel}</span>
+                      <div className="w-4 h-4 border border-border flex items-center justify-center flex-shrink-0">
+                        <span className="text-muted text-[10px]">+</span>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
             </div>
           </div>
         )}
       </div>
 
-      {/* ─── Section 05 : Colonnes ──────────────────────────── */}
       <div>
         <p className="font-mono text-[10px] uppercase tracking-widest text-muted mb-3">
           05 - Colonnes
@@ -359,7 +328,6 @@ const SettingsPanel: React.FC<Props> = ({
         </div>
       </div>
 
-      {/* ─── Section 06 : Tailles réelles (SLIDERS) ─────────── */}
       <div>
         <p className="font-mono text-[10px] uppercase tracking-widest text-muted mb-3">
           06 - Tailles des polices (px)
@@ -411,136 +379,77 @@ const SettingsPanel: React.FC<Props> = ({
         </div>
       </div>
 
-      {/* ─── Section 07 : Style des polices ──────────────────── */}
       <div>
         <p className="font-mono text-[10px] uppercase tracking-widest text-muted mb-3">
           07 - Style des polices
         </p>
 
-        {/* Label */}
         <div className="mb-3 p-3 border border-border rounded bg-surface/50">
           <div className="flex justify-between font-mono text-xs text-muted mb-2">
             <label>Label</label>
           </div>
           <div className="flex gap-2 items-center flex-wrap">
             <button
-              onClick={() => setFontStyle({ 
-                ...fontStyle, 
-                labelWeight: fontStyle.labelWeight === 'bold' ? 'semibold' : 'bold' 
-              })}
-              className={`px-3 py-1 border font-mono text-sm transition-colors rounded
-                ${fontStyle.labelWeight === 'bold' 
-                  ? 'bg-accent border-accent text-white' 
-                  : 'bg-white border-border hover:border-muted'}`}
+              onClick={() => setFontStyle({ ...fontStyle, labelWeight: fontStyle.labelWeight === 'bold' ? 'semibold' : 'bold' })}
+              className={`px-3 py-1 border font-mono text-sm transition-colors rounded ${fontStyle.labelWeight === 'bold' ? 'bg-accent border-accent text-white' : 'bg-white border-border hover:border-muted'}`}
             >
               <span className="font-bold">Gras</span>
             </button>
             <button
-              onClick={() => setFontStyle({ 
-                ...fontStyle, 
-                labelWeight: fontStyle.labelWeight === 'semibold' ? 'normal' : 'semibold' 
-              })}
-              className={`px-3 py-1 border font-mono text-sm transition-colors rounded
-                ${fontStyle.labelWeight === 'semibold' 
-                  ? 'bg-accent border-accent text-white' 
-                  : 'bg-white border-border hover:border-muted'}`}
+              onClick={() => setFontStyle({ ...fontStyle, labelWeight: fontStyle.labelWeight === 'semibold' ? 'normal' : 'semibold' })}
+              className={`px-3 py-1 border font-mono text-sm transition-colors rounded ${fontStyle.labelWeight === 'semibold' ? 'bg-accent border-accent text-white' : 'bg-white border-border hover:border-muted'}`}
             >
               <span className="font-semibold">Semi-gras</span>
             </button>
             <button
-              onClick={() => setFontStyle({ 
-                ...fontStyle, 
-                labelItalic: !fontStyle.labelItalic 
-              })}
-              className={`px-3 py-1 border font-mono text-sm transition-colors rounded
-                ${fontStyle.labelItalic 
-                  ? 'bg-accent border-accent text-white' 
-                  : 'bg-white border-border hover:border-muted'}`}
+              onClick={() => setFontStyle({ ...fontStyle, labelItalic: !fontStyle.labelItalic })}
+              className={`px-3 py-1 border font-mono text-sm transition-colors rounded ${fontStyle.labelItalic ? 'bg-accent border-accent text-white' : 'bg-white border-border hover:border-muted'}`}
             >
               <span className="italic">Italique</span>
             </button>
-            <span 
-              className={`ml-auto text-sm px-2 py-1 rounded bg-white border border-border
-                ${fontStyle.labelWeight === 'bold' ? 'font-bold' : ''}
-                ${fontStyle.labelWeight === 'semibold' ? 'font-semibold' : ''}
-                ${fontStyle.labelItalic ? 'italic' : ''}
-              `}
-            >
+            <span className={`ml-auto text-sm px-2 py-1 rounded bg-white border border-border ${fontStyle.labelWeight === 'bold' ? 'font-bold' : ''} ${fontStyle.labelWeight === 'semibold' ? 'font-semibold' : ''} ${fontStyle.labelItalic ? 'italic' : ''}`}>
               Aa
             </span>
           </div>
         </div>
 
-        {/* Valeur */}
         <div className="mb-3 p-3 border border-border rounded bg-surface/50">
           <div className="flex justify-between font-mono text-xs text-muted mb-2">
             <label>Valeur</label>
           </div>
           <div className="flex gap-2 items-center flex-wrap">
             <button
-              onClick={() => setFontStyle({ 
-                ...fontStyle, 
-                valueWeight: fontStyle.valueWeight === 'bold' ? 'semibold' : 'bold' 
-              })}
-              className={`px-3 py-1 border font-mono text-sm transition-colors rounded
-                ${fontStyle.valueWeight === 'bold' 
-                  ? 'bg-accent border-accent text-white' 
-                  : 'bg-white border-border hover:border-muted'}`}
+              onClick={() => setFontStyle({ ...fontStyle, valueWeight: fontStyle.valueWeight === 'bold' ? 'semibold' : 'bold' })}
+              className={`px-3 py-1 border font-mono text-sm transition-colors rounded ${fontStyle.valueWeight === 'bold' ? 'bg-accent border-accent text-white' : 'bg-white border-border hover:border-muted'}`}
             >
               <span className="font-bold">Gras</span>
             </button>
             <button
-              onClick={() => setFontStyle({ 
-                ...fontStyle, 
-                valueWeight: fontStyle.valueWeight === 'semibold' ? 'normal' : 'semibold' 
-              })}
-              className={`px-3 py-1 border font-mono text-sm transition-colors rounded
-                ${fontStyle.valueWeight === 'semibold' 
-                  ? 'bg-accent border-accent text-white' 
-                  : 'bg-white border-border hover:border-muted'}`}
+              onClick={() => setFontStyle({ ...fontStyle, valueWeight: fontStyle.valueWeight === 'semibold' ? 'normal' : 'semibold' })}
+              className={`px-3 py-1 border font-mono text-sm transition-colors rounded ${fontStyle.valueWeight === 'semibold' ? 'bg-accent border-accent text-white' : 'bg-white border-border hover:border-muted'}`}
             >
               <span className="font-semibold">Semi-gras</span>
             </button>
             <button
-              onClick={() => setFontStyle({ 
-                ...fontStyle, 
-                valueItalic: !fontStyle.valueItalic 
-              })}
-              className={`px-3 py-1 border font-mono text-sm transition-colors rounded
-                ${fontStyle.valueItalic 
-                  ? 'bg-accent border-accent text-white' 
-                  : 'bg-white border-border hover:border-muted'}`}
+              onClick={() => setFontStyle({ ...fontStyle, valueItalic: !fontStyle.valueItalic })}
+              className={`px-3 py-1 border font-mono text-sm transition-colors rounded ${fontStyle.valueItalic ? 'bg-accent border-accent text-white' : 'bg-white border-border hover:border-muted'}`}
             >
               <span className="italic">Italique</span>
             </button>
-            <span 
-              className={`ml-auto text-sm px-2 py-1 rounded bg-white border border-border
-                ${fontStyle.valueWeight === 'bold' ? 'font-bold' : ''}
-                ${fontStyle.valueWeight === 'semibold' ? 'font-semibold' : ''}
-                ${fontStyle.valueItalic ? 'italic' : ''}
-              `}
-            >
+            <span className={`ml-auto text-sm px-2 py-1 rounded bg-white border border-border ${fontStyle.valueWeight === 'bold' ? 'font-bold' : ''} ${fontStyle.valueWeight === 'semibold' ? 'font-semibold' : ''} ${fontStyle.valueItalic ? 'italic' : ''}`}>
               Aa
             </span>
           </div>
         </div>
       </div>
 
-      {/* ─── Bouton Impression ──────────────────────────────── */}
       <div className="mt-auto">
         <button
           onClick={onPrint}
           disabled={total === 0}
           className="w-full bg-accent hover:bg-red-700 disabled:bg-border disabled:text-muted disabled:cursor-not-allowed text-white py-3 font-bold text-sm flex items-center justify-center gap-2 transition-colors"
         >
-          <svg
-            width="17"
-            height="17"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-          >
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <polyline points="6 9 6 2 18 2 18 9" />
             <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
             <rect x="6" y="14" width="12" height="8" />

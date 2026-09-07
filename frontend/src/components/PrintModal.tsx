@@ -17,13 +17,15 @@ interface PrintModalProps {
   onToggleYear?: (year: string) => void;
   onPrint: () => void;
   onReset?: () => void;
+  visibleFields?: string[];
+  metaFields?: Array<{ id: number; name: string; label: string; field_type: string }>;
 }
 
 const PrintModal: React.FC<PrintModalProps> = ({
   isOpen,
   onClose,
   boxes,
-  fields,
+  fields: propFields,
   title,
   filename = 'Archives',
   total = boxes.length,
@@ -33,8 +35,35 @@ const PrintModal: React.FC<PrintModalProps> = ({
   onToggleYear = () => {},
   onPrint,
   onReset = () => {},
+  visibleFields: propVisibleFields,
+  metaFields = [],
 }) => {
-  const { visibleFields, cols, size } = useSettings();
+  const { visibleFields: contextVisibleFields, cols, size, setVisibleFields } = useSettings();
+  
+  // ✅ Utiliser les metaFields pour les champs (priorité)
+  const fieldsFromMeta = metaFields.map(mf => mf.name);
+  
+  // ✅ Prioriser les metaFields, sinon utiliser les propFields
+  const fieldsToUse = fieldsFromMeta.length > 0 
+    ? fieldsFromMeta 
+    : (propFields && propFields.length > 0 ? propFields : []);
+  
+  // ✅ Si aucun champ n'est trouvé, utiliser des champs par défaut
+  const finalFields = fieldsToUse.length > 0 
+    ? fieldsToUse 
+    : ['numero_boite', 'annee'];
+  
+  // ✅ Mettre à jour les visibleFields avec les champs disponibles
+  const visibleFields = propVisibleFields && propVisibleFields.length > 0 
+    ? propVisibleFields 
+    : (contextVisibleFields.length > 0 ? contextVisibleFields : finalFields);
+  
+  // ✅ Mettre à jour le contexte avec les nouveaux champs si nécessaire
+  React.useEffect(() => {
+    if (finalFields.length > 0 && contextVisibleFields.length === 0) {
+      setVisibleFields(finalFields);
+    }
+  }, [finalFields, contextVisibleFields.length, setVisibleFields]);
 
   if (!isOpen) return null;
 
@@ -45,7 +74,6 @@ const PrintModal: React.FC<PrintModalProps> = ({
           className="bg-white rounded-lg shadow-xl max-w-7xl w-full max-h-[95vh] flex flex-col" 
           onClick={(e) => e.stopPropagation()}
         >
-          {/* En-tête */}
           <div className="sticky top-0 bg-white border-b border-border px-6 py-4 flex items-center justify-between rounded-t-lg z-10">
             <h2 className="text-xl font-bold text-primary">🖨️ {title}</h2>
             <div className="flex gap-3">
@@ -64,7 +92,6 @@ const PrintModal: React.FC<PrintModalProps> = ({
             </div>
           </div>
 
-          {/* Contenu : SettingsPanel + PrintPreview */}
           <div className="flex flex-1 overflow-hidden">
             <SettingsPanel
               filename={filename}
@@ -75,18 +102,20 @@ const PrintModal: React.FC<PrintModalProps> = ({
               onToggleYear={onToggleYear}
               onPrint={onPrint}
               onReset={onReset}
-              fields={fields}
+              fields={finalFields}
+              metaFields={metaFields}  // ✅ Passer les metaFields complets
             />
             
             <div className="flex-1 overflow-y-auto p-6 print:p-0 print:overflow-visible">
               {boxes.length > 0 ? (
                 <PrintPreview
                   boxes={boxes}
-                  fields={fields}
+                  fields={finalFields}
                   visibleFields={visibleFields}
                   cols={cols}
                   size={size}
                   boxField="numero_boite"
+                  metaFields={metaFields}
                 />
               ) : (
                 <div className="text-center py-12 text-muted font-mono">

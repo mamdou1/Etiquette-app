@@ -5,7 +5,7 @@ const {
   getByType,
   getById,
   create,
-  batchCreate,
+  batchCreate,  // ✅ NOUVEAU
   update,
   remove,
   removePermanent,
@@ -14,7 +14,7 @@ const {
 // Routes pour les champs d'un type
 router.get('/types-document/:typeId/meta-fields', auth, getByType);
 router.post('/types-document/:typeId/meta-fields', auth, create);
-router.post('/types-document/:typeId/meta-fields/batch', auth, batchCreate);
+router.post('/types-document/:typeId/meta-fields/batch', auth, batchCreate);  // ✅ NOUVEAU
 
 // Routes pour un champ spécifique
 router.get('/meta-fields/:id', auth, getById);

@@ -1,4 +1,9 @@
-const { AgenceModel } = require("../models");
+const { 
+  AgenceModel, 
+  TypeDocumentModel, 
+  MetaFieldModel, 
+  MetaFieldValueModel 
+} = require("../models");
 
 // ─── GET /api/agences ─────────────────────────────────────────
 // Récupère toutes les agences (avec filtre actif/inactif)
@@ -23,7 +28,6 @@ const getAllAgences = async (req, res) => {
 
 // ─── GET /api/agences/:id ─────────────────────────────────────
 // Récupère une agence par ID
-// controllers/agenceController.js
 const getAgenceById = async (req, res) => {
   console.log('🔍 ===== getAgenceById appelé ====');
   console.log('🔍 req.params:', req.params);
@@ -73,7 +77,6 @@ const createAgence = async (req, res) => {
   try {
     const { nom, code } = req.body;
     
-    // ✅ Le code est optionnel, si non fourni on utilise le nom
     if (!nom) {
       return res.status(400).json({
         success: false,
@@ -81,7 +84,6 @@ const createAgence = async (req, res) => {
       });
     }
 
-    // Vérifier si l'agence existe déjà
     const existing = await AgenceModel.findByNom(nom);
     if (existing) {
       return res.status(400).json({
@@ -90,7 +92,6 @@ const createAgence = async (req, res) => {
       });
     }
 
-    // ✅ Créer avec le code (ou le nom comme code)
     const agence = await AgenceModel.findOrCreate(nom, code || nom);
     
     res.status(201).json({
@@ -120,7 +121,6 @@ const updateAgence = async (req, res) => {
 
     const { nom, code, active } = req.body;
 
-    // Vérifier si l'agence existe
     const agence = await AgenceModel.findById(id);
     if (!agence) {
       return res.status(404).json({
@@ -129,7 +129,6 @@ const updateAgence = async (req, res) => {
       });
     }
 
-    // Vérifier les doublons (sauf pour l'agence elle-même)
     if (nom && nom !== agence.nom) {
       const existing = await AgenceModel.findByNom(nom);
       if (existing && existing.id !== id) {
@@ -140,7 +139,6 @@ const updateAgence = async (req, res) => {
       }
     }
 
-    // Préparer les données de mise à jour
     const updateData = {};
     if (nom !== undefined) updateData.nom = nom;
     if (code !== undefined) updateData.code = code || nom || agence.nom;
@@ -189,7 +187,6 @@ const deleteAgence = async (req, res) => {
       });
     }
 
-    // Si déjà inactif, on ne fait rien
     if (!agence.active) {
       return res.status(400).json({
         success: false,
@@ -281,8 +278,6 @@ const getStats = async (req, res) => {
   }
 };
 
-// Ajouter cette fonction dans agenceController.js
-
 // ─── GET /api/agences/:id/hierarchy ──────────────────────────
 // Récupère la hiérarchie complète : Agence → Types → Années → Boîtes
 const getHierarchy = async (req, res) => {
@@ -317,7 +312,189 @@ const getHierarchy = async (req, res) => {
   }
 };
 
-// N'oublie pas d'ajouter getHierarchy dans module.exports
+// ─── POST /api/agences/boites ─────────────────────────────────
+// Ajout manuel d'une boîte
+const createBoite = async (req, res) => {
+  try {
+    const { agence_id, type_document_id, numero_boite, annee, meta_values } = req.body;
+
+    // Vérifier que l'agence existe
+    const agence = await AgenceModel.findById(agence_id);
+    if (!agence) {
+      return res.status(404).json({ success: false, message: 'Agence non trouvée' });
+    }
+
+    // Vérifier que le type existe
+    const type = await TypeDocumentModel.findById(type_document_id);
+    if (!type) {
+      return res.status(404).json({ success: false, message: 'Type de document non trouvé' });
+    }
+
+    // Vérifier que la boîte n'existe pas déjà
+    const existing = await MetaFieldValueModel.findByBoite(agence_id, type_document_id, numero_boite);
+    if (existing && existing.length > 0) {
+      return res.status(409).json({ success: false, message: 'Cette boîte existe déjà' });
+    }
+
+    // Récupérer les métafields du type
+    const metaFields = await MetaFieldModel.findByType(type_document_id);
+    if (metaFields.length === 0) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Aucun champ défini pour ce type de document' 
+      });
+    }
+
+    // Créer les valeurs
+    let savedCount = 0;
+    for (const mf of metaFields) {
+      const value = meta_values[mf.name];
+      if (value !== undefined && value !== null && value !== '') {
+        await MetaFieldValueModel.upsert({
+          agence_id,
+          type_document_id,
+          meta_field_id: mf.id,
+          numero_boite,
+          annee,
+          value: String(value)
+        });
+        savedCount++;
+      }
+    }
+
+    if (savedCount === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Aucune valeur valide fournie'
+      });
+    }
+
+    res.status(201).json({
+      success: true,
+      message: `Boîte ${numero_boite} créée avec ${savedCount} champ(s)`,
+      data: { numero_boite, annee, saved_count: savedCount }
+    });
+  } catch (error) {
+    console.error('❌ createBoite error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Erreur lors de la création'
+    });
+  }
+};
+
+// ─── GET /api/agences/:id/boites ──────────────────────────────
+// Récupère toutes les boîtes d'une agence
+const getBoitesByAgence = async (req, res) => {
+  try {
+    const agenceId = parseInt(req.params.id);
+    if (isNaN(agenceId)) {
+      return res.status(400).json({ success: false, message: 'ID invalide' });
+    }
+
+    const boites = await MetaFieldValueModel.findByAgence(agenceId);
+
+    res.status(200).json({
+      success: true,
+      data: boites,
+      count: boites.length
+    });
+  } catch (error) {
+    console.error('❌ getBoitesByAgence error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Erreur lors de la récupération'
+    });
+  }
+};
+
+// ─── GET /api/agences/:id/types/:typeId/boites ────────────────
+// Récupère les boîtes d'un type pour une agence
+const getBoitesByType = async (req, res) => {
+  try {
+    const agenceId = parseInt(req.params.id);
+    const typeId = parseInt(req.params.typeId);
+    if (isNaN(agenceId) || isNaN(typeId)) {
+      return res.status(400).json({ success: false, message: 'ID invalide' });
+    }
+
+    const boites = await MetaFieldValueModel.findByBoite(agenceId, typeId);
+
+    res.status(200).json({
+      success: true,
+      data: boites,
+      count: boites.length
+    });
+  } catch (error) {
+    console.error('❌ getBoitesByType error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Erreur lors de la récupération'
+    });
+  }
+};
+
+// ─── DELETE /api/agences/:id/types/:typeId/boites/:numero ────
+// Supprime une boîte
+const deleteBoite = async (req, res) => {
+  try {
+    const agenceId = parseInt(req.params.id);
+    const typeId = parseInt(req.params.typeId);
+    const numeroBoite = req.params.numero;
+
+    if (isNaN(agenceId) || isNaN(typeId)) {
+      return res.status(400).json({ success: false, message: 'ID invalide' });
+    }
+
+    const deleted = await MetaFieldValueModel.deleteByBoite(agenceId, typeId, numeroBoite);
+
+    if (!deleted) {
+      return res.status(404).json({ success: false, message: 'Boîte non trouvée' });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Boîte ${numeroBoite} supprimée avec succès`
+    });
+  } catch (error) {
+    console.error('❌ deleteBoite error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Erreur lors de la suppression'
+    });
+  }
+};
+
+// ─── GET /api/agences/:id/stats ───────────────────────────────
+// Statistiques d'une agence
+const getAgenceStats = async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) {
+      return res.status(400).json({ success: false, message: 'ID invalide' });
+    }
+
+    const totalBoites = await MetaFieldValueModel.count({ agenceId: id });
+    const boites = await MetaFieldValueModel.findByAgence(id);
+    const totalDocuments = boites.length;
+
+    res.status(200).json({
+      success: true,
+      data: {
+        total_boites: totalBoites || 0,
+        total_documents: totalDocuments || 0
+      }
+    });
+  } catch (error) {
+    console.error('❌ getAgenceStats error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Erreur lors de la récupération des statistiques'
+    });
+  }
+};
+
+// ─── EXPORTS ──────────────────────────────────────────────────
 module.exports = {
   getAllAgences,
   getAgenceById,
@@ -326,5 +503,10 @@ module.exports = {
   deleteAgence,
   deleteAgencePermanent,
   getStats,
-  getHierarchy,  // ✅ NOUVEAU
+  getHierarchy,
+  createBoite,        // ✅ NOUVEAU
+  getBoitesByAgence,  // ✅ NOUVEAU
+  getBoitesByType,    // ✅ NOUVEAU
+  deleteBoite,        // ✅ NOUVEAU
+  getAgenceStats,     // ✅ NOUVEAU
 };

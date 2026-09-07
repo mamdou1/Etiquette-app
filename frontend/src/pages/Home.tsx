@@ -1,10 +1,21 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import * as XLSX from "xlsx";
 import FileUpload from "../components/FileUpload";
 import SettingsPanel from "../components/SettingsPanel";
 import PrintPreview from "../components/PrintPreview";
 import { uploadExcel } from "../services/api";
-import { LabelRecord, BoxGroup, ColumnCount, LabelSize, FieldFilters } from "../types";
+import { getAllAgences, Agence } from "../services/agenceService";
+import {
+  getTypesByAgence,
+  TypeDocument,
+} from "../services/typeDocumentService";
+import {
+  LabelRecord,
+  BoxGroup,
+  ColumnCount,
+  LabelSize,
+  FieldFilters,
+} from "../types";
 import { useSettings } from "../contexts/SettingsContext";
 
 // ─── Helpers ──────────────────────────────────────────────────
@@ -66,10 +77,18 @@ function recordMatchesFilters(record: LabelRecord, filters: FieldFilters) {
 
 function isYearField(field: string) {
   const normalized = normalizeText(field);
-  return normalized === "annee" || normalized === "annees" || normalized.includes("annee");
+  return (
+    normalized === "annee" ||
+    normalized === "annees" ||
+    normalized.includes("annee")
+  );
 }
 
-function recordMatchesYears(record: LabelRecord, yearFields: string[], selectedYears: string[]) {
+function recordMatchesYears(
+  record: LabelRecord,
+  yearFields: string[],
+  selectedYears: string[],
+) {
   if (selectedYears.length === 0 || yearFields.length === 0) return true;
   return yearFields.some((field) =>
     String(record[field] ?? "")
@@ -117,9 +136,8 @@ function detectBoxField(headers: string[], records: LabelRecord[]): string {
   ];
   const WEAK_BOX_KEYWORDS = [
     "numero", "numéro", "number", "no", "n°", "nº",
-    "id", "identifiant",
-    "reference", "référence", "ref", "ident", "unité", "unite",
-    "dossier", "code", "contenant",
+    "id", "identifiant", "reference", "référence", "ref",
+    "ident", "unité", "unite", "dossier", "code", "contenant",
   ];
 
   let bestField = headers[0];
@@ -128,7 +146,10 @@ function detectBoxField(headers: string[], records: LabelRecord[]): string {
   for (const header of headers) {
     const nh = normalizeText(header);
 
-    const personFields = ["caissier", "caissiers", "caissiere", "preparateur", "prep", "nom", "prenom", "responsable", "agent", "employe", "employé", "personne"];
+    const personFields = [
+      "caissier", "caissiers", "caissiere", "preparateur", "prep",
+      "nom", "prenom", "responsable", "agent", "employe", "employé", "personne",
+    ];
     const isPersonField = personFields.some((kw) => nh.includes(kw));
     const personPenalty = isPersonField ? 50 : 0;
 
@@ -195,10 +216,18 @@ function groupByBox(records: LabelRecord[], boxField: string): BoxGroup[] {
       boxNumber,
       records: mergeRecords(recs),
     }))
-    .sort((a, b) => a.boxNumber.localeCompare(b.boxNumber, undefined, { numeric: true }));
+    .sort((a, b) =>
+      a.boxNumber.localeCompare(b.boxNumber, undefined, { numeric: true }),
+    );
 }
 
-function parseExcelToBoxes(file: File): Promise<{ filename: string; boxes: BoxGroup[]; records: LabelRecord[]; fields: string[]; boxKey: string }> {
+function parseExcelToBoxes(file: File): Promise<{
+  filename: string;
+  boxes: BoxGroup[];
+  records: LabelRecord[];
+  fields: string[];
+  boxKey: string;
+}> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -247,7 +276,13 @@ function parseExcelToBoxes(file: File): Promise<{ filename: string; boxes: BoxGr
         const boxKey = detectBoxField(headers, records);
         const boxes = groupByBox(records, boxKey);
 
-        resolve({ filename: file.name, boxes, records, fields: headers, boxKey });
+        resolve({
+          filename: file.name,
+          boxes,
+          records,
+          fields: headers,
+          boxKey,
+        });
       } catch (err: any) {
         reject(err);
       }
@@ -298,18 +333,79 @@ const Home: React.FC = () => {
     message?: string;
   } | null>(null);
 
+  const [agences, setAgences] = useState<Agence[]>([]);
+  const [types, setTypes] = useState<TypeDocument[]>([]);
+  const [selectedAgenceId, setSelectedAgenceId] = useState<number | null>(null);
+  const [selectedTypeId, setSelectedTypeId] = useState<number | null>(null);
+  const [loadingAgences, setLoadingAgences] = useState(false);
+
+  useEffect(() => {
+    const loadAgences = async () => {
+      setLoadingAgences(true);
+      try {
+        const response = await getAllAgences();
+        setAgences(response.data);
+        if (response.data.length > 0) {
+          setSelectedAgenceId(response.data[0].id);
+        }
+      } catch (err) {
+        console.error("Erreur chargement agences:", err);
+        setError("Impossible de charger les agences");
+      } finally {
+        setLoadingAgences(false);
+      }
+    };
+    loadAgences();
+  }, []);
+
+  useEffect(() => {
+    const loadTypes = async () => {
+      if (!selectedAgenceId) {
+        setTypes([]);
+        setSelectedTypeId(null);
+        return;
+      }
+
+      try {
+        const response = await getTypesByAgence(selectedAgenceId);
+        setTypes(response.data);
+        if (response.data.length > 0) {
+          setSelectedTypeId(response.data[0].id);
+        } else {
+          setSelectedTypeId(null);
+        }
+      } catch (err) {
+        console.error("Erreur chargement types:", err);
+        setTypes([]);
+        setSelectedTypeId(null);
+      }
+    };
+    loadTypes();
+  }, [selectedAgenceId]);
+
   const allRecords = rawRecords;
   const yearFields = useMemo(() => fields.filter(isYearField), [fields]);
-  const availableYears = useMemo(() => [...new Set(
-    allRecords.flatMap((record) => yearFields.flatMap((field) =>
-      String(record[field] ?? "").split(/[,;|]/).map((year) => year.trim()).filter(Boolean),
-    )),
-  )].sort((a, b) => b.localeCompare(a, undefined, { numeric: true })), [allRecords, yearFields]);
+  const availableYears = useMemo(() =>
+    [...new Set(
+      allRecords.flatMap((record) =>
+        yearFields.flatMap((field) =>
+          String(record[field] ?? "")
+            .split(/[,;|]/)
+            .map((year) => year.trim())
+            .filter(Boolean),
+        ),
+      ),
+    )].sort((a, b) => b.localeCompare(a, undefined, { numeric: true })),
+    [allRecords, yearFields],
+  );
 
   const filteredRecords = useMemo(
-    () => allRecords.filter((record) =>
-      recordMatchesFilters(record, filters) && recordMatchesYears(record, yearFields, selectedYears),
-    ),
+    () =>
+      allRecords.filter(
+        (record) =>
+          recordMatchesFilters(record, filters) &&
+          recordMatchesYears(record, yearFields, selectedYears),
+      ),
     [allRecords, filters, yearFields, selectedYears],
   );
 
@@ -319,51 +415,112 @@ const Home: React.FC = () => {
   }, [filteredRecords, boxField]);
 
   const handleFile = async (file: File) => {
+    if (!selectedAgenceId) {
+      setError("Veuillez sélectionner une agence");
+      return;
+    }
+    if (!selectedTypeId) {
+      setError("Veuillez sélectionner un type de document");
+      return;
+    }
+
     setLoading(true);
     setError("");
     setEnrichedInfo(null);
     setImportStats(null);
-    
+
     try {
       const result = await parseExcelToBoxes(file);
-      
-      setBoxes(result.boxes);
-      setRawRecords(result.records);
+
+      // Stocker les données brutes pour référence
       setFields(result.fields);
-      setVisibleFields(result.fields);
       setFilename(result.filename);
       setBoxField(result.boxKey);
       setFilters({});
       setSelectedYears([]);
-      setDetectedFields(result.fields);
 
       setUploading(true);
       try {
-        const response = await uploadExcel(file);
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("agence_id", String(selectedAgenceId));
+        formData.append("type_document_id", String(selectedTypeId));
+
+        const response = await uploadExcel(formData);
+        
         if (response.success && response.enriched) {
+          const metaFields = response.metaFields || [];
+          const metaFieldNames = metaFields.map((mf: { name: string }) => mf.name);
+
+          // Définir visibleFields avec TOUS les MetaFields
+          const allFields = ["numero_boite", ...metaFieldNames];
+          setVisibleFields(allFields);
+          setDetectedFields(allFields);
+
+          // RECONSTRUIRE les boxes avec les données enrichies du serveur
+          const enrichedBoxes = response.enriched.map((item: any) => {
+            const record: any = {
+              numero_boite: item.numero_boite,
+              annee: item.annee,
+            };
+            
+            if (item.metaValues) {
+              Object.keys(item.metaValues).forEach((key: string) => {
+                record[key] = item.metaValues[key];
+              });
+            }
+            
+            return {
+              boxNumber: item.numero_boite,
+              records: [record],
+            };
+          });
+
+          setBoxes(enrichedBoxes);
+          
+          // ✅ Correction : Typer explicitement la réduction
+          const allRecords: LabelRecord[] = enrichedBoxes.reduce(
+            (acc: LabelRecord[], box: { boxNumber: string; records: LabelRecord[] }) => {
+              return [...acc, ...box.records];
+            },
+            [] as LabelRecord[]
+          );
+          setRawRecords(allRecords);
+
           setEnrichedInfo({
-            original: response.originalCount || 0,
+            original: response.totalLignes || 0,
             saved: response.savedCount || 0,
           });
-          
+
           setImportStats({
             saved: response.savedCount || 0,
-            doublons: response.doublonsIgnores || 0,
+            doublons: 0,
             agences: response.agenceTrouvees?.length || 0,
-            nouvellesAgences: response.nouvellesAgences?.length || 0,
+            nouvellesAgences: 0,
             types: response.typesTrouves?.length || 0,
-            nouveauxTypes: response.nouveauxTypes?.length || 0,
-            relations: response.relationsCreees?.length || 0,
-            isReimport: response.isReimport || false,
-            message: response.message
+            nouveauxTypes: response.metaFieldsCrees || 0,
+            relations: response.totalBoites || 0,
+            isReimport: false,
+            message: response.message,
           });
+        } else {
+          // Fallback: utiliser les données du parsing Excel
+          setBoxes(result.boxes);
+          setRawRecords(result.records);
+          setVisibleFields(result.fields);
+          setDetectedFields(result.fields);
         }
       } catch (err: any) {
-        console.warn("⚠️ Stockage dans les archives échoué:", err.message);
+        console.warn("⚠️ Stockage échoué:", err.message);
+        setError("Erreur lors du stockage: " + (err.response?.data?.error || err.message));
+        // Fallback: utiliser les données du parsing Excel
+        setBoxes(result.boxes);
+        setRawRecords(result.records);
+        setVisibleFields(result.fields);
+        setDetectedFields(result.fields);
       } finally {
         setUploading(false);
       }
-
     } catch (err: any) {
       setError(err.message || "Erreur lors de la lecture du fichier");
     } finally {
@@ -425,26 +582,76 @@ const Home: React.FC = () => {
                 Les données seront regroupées par boîte et converties en étiquettes imprimables
               </p>
             </div>
+
+            <div className="space-y-3 mb-4">
+              <div>
+                <label className="block font-mono text-xs text-muted mb-1 font-semibold">
+                  Agence *
+                </label>
+                <select
+                  value={selectedAgenceId || ""}
+                  onChange={(e) => setSelectedAgenceId(Number(e.target.value))}
+                  className="w-full border border-border px-4 py-2.5 rounded focus:outline-none focus:border-accent font-mono text-sm"
+                  disabled={loadingAgences}
+                >
+                  <option value="">Sélectionner une agence</option>
+                  {agences.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.nom} {!a.active && "(inactive)"}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-mono text-xs text-muted mb-1 font-semibold">
+                  Type de document *
+                </label>
+                <select
+                  value={selectedTypeId || ""}
+                  onChange={(e) => setSelectedTypeId(Number(e.target.value))}
+                  className="w-full border border-border px-4 py-2.5 rounded focus:outline-none focus:border-accent font-mono text-sm"
+                  disabled={!selectedAgenceId || loadingAgences}
+                >
+                  <option value="">Sélectionner un type</option>
+                  {types.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.nom} {!t.active && "(inactif)"}
+                    </option>
+                  ))}
+                </select>
+                {selectedAgenceId && types.length === 0 && !loadingAgences && (
+                  <p className="text-xs text-amber-600 mt-1">
+                    ⚠️ Aucun type assigné à cette agence
+                  </p>
+                )}
+              </div>
+            </div>
+
             <FileUpload onFile={handleFile} loading={loading || uploading} />
-            
+
             {error && (
               <p className="mt-3 text-sm text-accent font-mono text-center bg-accent-light border border-accent px-3 py-2 rounded">
                 ⚠ {error}
               </p>
             )}
 
-            {/* ─── Stats après upload ─────────────────────────── */}
             {importStats && (
-              <div className={`mt-3 p-3 rounded border ${
-                importStats.isReimport 
-                  ? 'bg-amber-50 border-amber-200' 
-                  : 'bg-green-50 border-green-200'
-              }`}>
-                <p className={`text-sm font-mono ${
-                  importStats.isReimport ? 'text-amber-700' : 'text-green-700'
-                }`}>
-                  {importStats.isReimport ? '🔄' : '✅'} 
-                  {importStats.message || `Stockage terminé : ${importStats.saved} boîte(s) sauvegardée(s)`}
+              <div
+                className={`mt-3 p-3 rounded border ${
+                  importStats.isReimport
+                    ? "bg-amber-50 border-amber-200"
+                    : "bg-green-50 border-green-200"
+                }`}
+              >
+                <p
+                  className={`text-sm font-mono ${
+                    importStats.isReimport ? "text-amber-700" : "text-green-700"
+                  }`}
+                >
+                  {importStats.isReimport ? "🔄" : "✅"}
+                  {importStats.message ||
+                    `Stockage terminé : ${importStats.saved} boîte(s) sauvegardée(s)`}
                   {importStats.doublons > 0 && (
                     <span className="text-amber-600 ml-2">
                       ⚠️ {importStats.doublons} doublon(s) ignoré(s)
@@ -454,17 +661,21 @@ const Home: React.FC = () => {
                 <div className="mt-1 text-xs text-muted font-mono flex flex-wrap gap-3">
                   <span>🏢 {importStats.agences} agence(s) trouvée(s)</span>
                   {importStats.nouvellesAgences > 0 && (
-                    <span className="text-accent">✨ +{importStats.nouvellesAgences} nouvelle(s)</span>
+                    <span className="text-accent">
+                      ✨ +{importStats.nouvellesAgences} nouvelle(s)
+                    </span>
                   )}
                   <span>📄 {importStats.types} type(s) trouvé(s)</span>
                   {importStats.nouveauxTypes > 0 && (
-                    <span className="text-accent">✨ +{importStats.nouveauxTypes} nouveau(x)</span>
+                    <span className="text-accent">
+                      ✨ +{importStats.nouveauxTypes} nouveau(x)
+                    </span>
                   )}
                   <span>🔗 {importStats.relations} relation(s) créée(s)</span>
                 </div>
                 {detectedFields.length > 0 && (
                   <p className="mt-1 text-[10px] text-muted/60 font-mono">
-                    🔍 Champs détectés : {detectedFields.join(', ')}
+                    🔍 Champs détectés : {detectedFields.join(", ")}
                   </p>
                 )}
               </div>
@@ -477,8 +688,18 @@ const Home: React.FC = () => {
               <table className="w-full text-xs font-mono border-collapse">
                 <thead>
                   <tr className="bg-surface">
-                    {["N° de la Boite", "Date de Production", "Type de Document", "Nom des caissiers", "Nom de l'Agence", "Année"].map((h) => (
-                      <th key={h} className="border border-border px-2 py-1 text-left text-muted font-medium">
+                    {[
+                      "N° de la Boite",
+                      "Date de Production",
+                      "Type de Document",
+                      "Nom des caissiers",
+                      "Nom de l'Agence",
+                      "Année",
+                    ].map((h) => (
+                      <th
+                        key={h}
+                        className="border border-border px-2 py-1 text-left text-muted font-medium"
+                      >
                         {h}
                       </th>
                     ))}
@@ -486,13 +707,31 @@ const Home: React.FC = () => {
                 </thead>
                 <tbody>
                   <tr>
-                    {["BOX-001", "08/08/2023", "Pièces de caisse", "Djénéba C.", "DGEI", "2023" ].map((c, i) => (
-                      <td key={i} className="border border-border px-2 py-1">{c}</td>
+                    {[
+                      "BOX-001",
+                      "08/08/2023",
+                      "Pièces de caisse",
+                      "Djénéba C.",
+                      "DGEI",
+                      "2023",
+                    ].map((c, i) => (
+                      <td key={i} className="border border-border px-2 py-1">
+                        {c}
+                      </td>
                     ))}
                   </tr>
                   <tr>
-                    {["BOX-002", "09/08/2023", "Pièces de caisse", "Moussa D.", "DGEI", "2023"].map((c, i) => (
-                      <td key={i} className="border border-border px-2 py-1">{c}</td>
+                    {[
+                      "BOX-002",
+                      "09/08/2023",
+                      "Pièces de caisse",
+                      "Moussa D.",
+                      "DGEI",
+                      "2023",
+                    ].map((c, i) => (
+                      <td key={i} className="border border-border px-2 py-1">
+                        {c}
+                      </td>
                     ))}
                   </tr>
                 </tbody>

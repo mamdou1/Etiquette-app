@@ -7,7 +7,7 @@ const TypeDocumentPage: React.FC = () => {
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-primary">📄 Types de documents</h1>
         <p className="text-sm text-muted font-mono mt-1">
-          Gérez les types de documents et leur attribution aux agences
+          Gérez les types de documents, leurs champs (métadonnées) et leur assignation aux agences
         </p>
       </div>
       <TypeDocumentManager />

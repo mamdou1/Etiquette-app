@@ -31,12 +31,12 @@ api.interceptors.request.use(
 
 export { api };
 
-// Fonction uploadExcel (si elle existe)
-export const uploadExcel = async (file: File) => {
-  const formData = new FormData();
-  formData.append('file', file);
+// ─── ✅ MODIFIER : uploadExcel accepte FormData ──────────────
+export const uploadExcel = async (formData: FormData) => {
   const response = await api.post('/upload', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
   });
   return response.data;
 };

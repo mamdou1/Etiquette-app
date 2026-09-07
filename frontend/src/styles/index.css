@@ -17,45 +17,51 @@ body {
 /* ─── Feuille A4 PAYSAGE ─────────────────────────────── */
 .a4-sheet {
   background: white;
-  width: 1123px;
-  min-height: 794px;
-  padding: 25px 30px;
+  width: 1123px; /* 297mm */
+  height: 794px; /* FIX: height au lieu de min-height */
+  padding: 7mm 8mm; /* REDUIT de 25px 30px */
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12);
   position: relative;
-  margin: 0 auto;
+  margin: 0 auto 16px auto;
+  box-sizing: border-box;
+  page-break-after: always;
+  overflow: hidden; /* FIX: Empêche de pousser si ça dépasse */
 }
 
 .a4-sheet.a4-landscape {
   width: 1123px;
-  min-height: 794px;
+  height: 794px;
+}
+
+.a4-sheet:last-child {
+  page-break-after: avoid;
 }
 
 /* ─── Grille 2×2 ──────────────────────────────────────── */
 .label-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  grid-template-rows: repeat(2, 1fr);
-  gap: 16px;
+  grid-template-rows: repeat(2, 1fr); /* 2 lignes égales */
+  gap: 3mm; /* REDUIT de 16px */
   width: 100%;
-  height: 100%;
-  min-height: 680px;
+  height: 100%; /* Prend toute la hauteur */
+  min-height: unset; /* ENLEVE le 680px */
 }
 
 /* ─── Étiquette STYLISÉE ─────────────────────────────── */
 .label-card {
   border: 1px solid #c8c5bf;
-  padding: 14px 16px 12px;
+  padding: 2.5mm; /* REDUIT de 14px 16px */
   position: relative;
-  overflow: hidden;
+  overflow: hidden; /* Le contenu dépasse = coupé dans la carte */
   background: white;
-  border-radius: 8px;
+  border-radius: 3px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  height: 100%;
-  min-height: 200px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-  transition: all 0.3s ease;
+  height: 100%; /* Prend 100% de la case */
+  min-height: unset; /* ENLEVE le 200px */
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
 }
 
 /* Bande colorée sur le côté */
@@ -64,10 +70,10 @@ body {
   position: absolute;
   top: 0;
   left: 0;
-  width: 6px;
+  width: 3px; /* Plus fine */
   height: 100%;
   background: linear-gradient(180deg, #e63946, #f4a261);
-  border-radius: 8px 0 0 8px;
+  border-radius: 3px 0 0 3px;
 }
 
 /* Badge de statut */
@@ -82,18 +88,20 @@ body {
 
 /* Style spécial pour les champs */
 .label-card .field-label {
-  font-size: 0.65rem;
+  font-size: 0.55rem; /* REDUIT */
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: #9e9b95;
+  margin-bottom: 0.5px;
 }
 
 .label-card .field-value {
-  font-size: 0.95rem;
+  font-size: 0.8rem; /* REDUIT */
   font-weight: 500;
   color: #1a1a2e;
-  line-height: 1.4;
+  line-height: 1.2;
+  word-break: break-word;
 }
 
 /* ─── Impression ──────────────────────────────────────── */
@@ -115,12 +123,11 @@ body {
 
   .a4-sheet {
     box-shadow: none !important;
-    width: 100vw !important;
-    min-height: 100vh !important;
+    width: 100% !important;
+    height: 100vh !important; /* 100% de la page */
     margin: 0 !important;
-    padding: 8mm 10mm !important;
-    height: 100vh !important;
-    page-break-after: always;
+    padding: 6mm 7mm !important; /* Encore plus petit */
+    overflow: hidden !important;
   }
 
   .a4-sheet:last-child {
@@ -128,20 +135,21 @@ body {
   }
 
   .label-grid {
-    grid-template-columns: repeat(2, 1fr) !important;
-    grid-template-rows: repeat(2, 1fr) !important;
-    gap: 12px !important;
-    min-height: auto !important;
-    height: 100% !important;
+    gap: 2.5mm !important;
   }
 
   .label-card {
-    border: 1px solid #c8c5bf !important;
-    min-height: 0 !important;
-    padding: 8px 10px !important;
-    height: 100% !important;
+    border: 1px solid #999 !important; /* Plus visible laser */
+    padding: 2mm !important;
     box-shadow: none !important;
-    border-radius: 4px !important;
+    border-radius: 2px !important;
+  }
+  
+  .label-card .field-label {
+    font-size: 7pt !important; /* Force petit en print */
+  }
+  .label-card .field-value {
+    font-size: 9pt !important;
   }
 
   @page {
@@ -154,7 +162,7 @@ body {
 @media (max-width: 1200px) {
   .a4-sheet {
     width: 100%;
-    min-height: auto;
+    height: auto;
     padding: 16px;
   }
 }

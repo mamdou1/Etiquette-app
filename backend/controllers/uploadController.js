@@ -11,87 +11,102 @@ const handleUpload = async (req, res) => {
     return res.status(400).json({ error: "Aucun fichier reçu" });
   }
 
+  const agence_id = req.body.agence_id ? parseInt(req.body.agence_id) : null;
+  const type_document_id = req.body.type_document_id ? parseInt(req.body.type_document_id) : null;
+
+  // ✅ Validation des paramètres
+  if (!agence_id) {
+    fs.unlinkSync(req.file.path);
+    return res.status(400).json({ 
+      success: false,
+      error: "agence_id est requis" 
+    });
+  }
+  if (!type_document_id) {
+    fs.unlinkSync(req.file.path);
+    return res.status(400).json({ 
+      success: false,
+      error: "type_document_id est requis" 
+    });
+  }
+
   const ext = path.extname(req.file.originalname).toLowerCase();
   if (!ALLOWED_EXTENSIONS.includes(ext)) {
     fs.unlinkSync(req.file.path);
-    return res.status(400).json({ error: "Format non supporté. Utilisez .xlsx ou .xls" });
+    return res.status(400).json({ 
+      success: false,
+      error: "Format non supporté. Utilisez .xlsx ou .xls" 
+    });
   }
 
   if (req.file.size > MAX_FILE_SIZE) {
     fs.unlinkSync(req.file.path);
-    return res.status(400).json({ error: "Fichier trop volumineux (max 10 MB)" });
+    return res.status(400).json({ 
+      success: false,
+      error: "Fichier trop volumineux (max 10 MB)" 
+    });
   }
 
   const filePath = req.file.path;
 
   try {
     console.log(`📄 Traitement du fichier: ${req.file.originalname}`);
+    console.log(`📌 Agence: ${agence_id}, Type: ${type_document_id}`);
     
     const { data, fields } = parseExcel(filePath);
     
     if (!data || data.length === 0) {
       fs.unlinkSync(filePath);
       return res.status(422).json({
+        success: false,
         error: "Le fichier Excel est vide ou mal formaté"
       });
     }
 
-    const { 
-      enriched, 
-      savedCount, 
-      doublonsIgnores,
-      agenceTrouvees, 
-      nouvellesAgences,
-      typesTrouves,
-      nouveauxTypes,
-      relationsCreees,
-      totalLignes,
-      totalBoitesUniques,
-      champsDetectes,
-      isReimport
-    } = await enrichirEtStocker(data);
+    // ✅ Appel à enrichirEtStocker avec validation intégrée
+    const result = await enrichirEtStocker(data, agence_id, type_document_id);
 
     const allFields = [...fields];
-    const newFields = Object.keys(enriched[0] || {}).filter(
+    const newFields = Object.keys(result.enriched[0] || {}).filter(
       (key) => !fields.includes(key)
     );
     allFields.push(...newFields);
 
+    // ✅ Nettoyage du fichier temporaire
     fs.unlink(filePath, (err) => {
       if (err) console.warn("⚠️ Impossible de supprimer le fichier temporaire :", err.message);
     });
 
-    console.log(`✅ Traitement terminé: ${enriched.length} lignes traitées`);
+    console.log(`✅ Traitement terminé: ${result.totalBoites} boîtes traitées`);
 
     return res.status(200).json({
       success: true,
       filename: req.file.originalname,
-      total: enriched.length,
+      totalLignes: result.totalLignes || 0,
+      totalBoites: result.totalBoites || 0,
+      savedCount: result.savedCount || 0,
+      metaFieldsCrees: result.metaFieldsCrees || 0,
+      metaFields: result.metaFields || [],
       fields: allFields,
-      data: enriched,
-      savedCount: savedCount || 0,
-      doublonsIgnores: doublonsIgnores || 0,
-      enriched: true,
-      agenceTrouvees: agenceTrouvees || [],
-      nouvellesAgences: nouvellesAgences || [],
-      typesTrouves: typesTrouves || [],
-      nouveauxTypes: nouveauxTypes || [],
-      relationsCreees: relationsCreees || [],
-      originalCount: data.length,
-      enrichedCount: enriched.length,
-      totalBoitesUniques: totalBoitesUniques || 0,
-      champsDetectes: champsDetectes || [],
-      isReimport: isReimport || false
+      data: result.enriched || [],
+      agenceTrouvees: result.agenceTrouvees || [],
+      typesTrouves: result.typesTrouves || [],
+      champsDetectes: Object.keys(data[0] || {}),
+      message: result.message || `✅ ${result.totalBoites || 0} boîtes sauvegardées avec succès`,
     });
+
   } catch (error) {
     console.error("❌ Erreur traitement:", error.message);
     
+    // ✅ Nettoyage du fichier en cas d'erreur
     if (fs.existsSync(filePath)) {
       try { fs.unlinkSync(filePath); } catch (e) {}
     }
 
+    // ✅ Renvoyer l'erreur avec un message clair
     return res.status(422).json({
-      error: "Impossible de traiter le fichier Excel",
+      success: false,
+      error: error.message || "Impossible de traiter le fichier Excel",
       details: error.message,
     });
   }

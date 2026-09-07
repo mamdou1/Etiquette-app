@@ -1,15 +1,14 @@
-import axios from "axios";
-import { api } from "./api";  // ✅ Import de api pour les requêtes authentifiées
+import { api } from './api';
 
-const API_URL = process.env.REACT_APP_API_URL || "http://localhost:5000/api";
+// ─── INTERFACES ─────────────────────────────────────────────────
 
 export interface Agence {
-  id?: number;
+  id: number;
   nom: string;
   code: string;
-  active?: boolean;
-  created_at?: Date;
-  updated_at?: Date;
+  active: boolean;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface AgenceResponse {
@@ -53,21 +52,14 @@ export interface HierarchyData {
   total_documents: number;
 }
 
-// ✅ Utilise api (avec token) pour les routes protégées
-export const getAgenceHierarchy = async (id: number): Promise<{ success: boolean; data: HierarchyData }> => {
-  const response = await api.get(`/agences/${id}/hierarchy`);
-  return response.data;
-};
-
-// ─── CRUD ─────────────────────────────────────────────────────
+// ─── CRUD AGENCES ──────────────────────────────────────────────
 
 /**
  * Récupérer toutes les agences
  */
 export const getAllAgences = async (active?: boolean): Promise<AgenceResponse> => {
-  // ✅ Utiliser api au lieu de axios direct pour avoir le token
-  const response = await api.get<AgenceResponse>('/agences', { 
-    params: { active } 
+  const response = await api.get<AgenceResponse>('/agences', {
+    params: { active }
   });
   return response.data;
 };
@@ -85,7 +77,7 @@ export const getAgenceById = async (id: number): Promise<Agence> => {
  */
 export const createAgence = async (nom: string, code: string): Promise<Agence> => {
   const response = await api.post<{ success: boolean; data: Agence; message: string }>(
-    '/agences', 
+    '/agences',
     { nom, code }
   );
   return response.data.data;
@@ -96,7 +88,7 @@ export const createAgence = async (nom: string, code: string): Promise<Agence> =
  */
 export const updateAgence = async (id: number, data: Partial<Agence>): Promise<Agence> => {
   const response = await api.put<{ success: boolean; data: Agence; message: string }>(
-    `/agences/${id}`, 
+    `/agences/${id}`,
     data
   );
   return response.data.data;
@@ -120,4 +112,67 @@ export const deleteAgencePermanent = async (id: number): Promise<boolean> => {
     `/agences/${id}/permanent`
   );
   return response.data.success;
+};
+
+// ─── HIÉRARCHIE ─────────────────────────────────────────────────
+
+/**
+ * Récupérer la hiérarchie complète d'une agence
+ * Agence → Types → Années → Boîtes
+ */
+export const getAgenceHierarchy = async (id: number): Promise<{ success: boolean; data: HierarchyData }> => {
+  const response = await api.get(`/agences/${id}/hierarchy`);
+  return response.data;
+};
+
+// ─── BOÎTES ─────────────────────────────────────────────────────
+
+export interface CreateBoiteData {
+  agence_id: number;
+  type_document_id: number;
+  numero_boite: string;
+  annee: string;
+  meta_values: Record<string, any>;
+}
+
+/**
+ * Créer une nouvelle boîte (ajout manuel)
+ */
+export const createBoite = async (data: CreateBoiteData): Promise<{ success: boolean; message: string; data: any }> => {
+  const response = await api.post('/agences/boites', data);
+  return response.data;
+};
+
+/**
+ * Récupérer les boîtes d'une agence
+ */
+export const getBoitesByAgence = async (agenceId: number): Promise<any> => {
+  const response = await api.get(`/agences/${agenceId}/boites`);
+  return response.data;
+};
+
+/**
+ * Récupérer les boîtes d'un type
+ */
+export const getBoitesByType = async (agenceId: number, typeId: number): Promise<any> => {
+  const response = await api.get(`/agences/${agenceId}/types/${typeId}/boites`);
+  return response.data;
+};
+
+/**
+ * Supprimer une boîte
+ */
+export const deleteBoite = async (agenceId: number, typeId: number, numeroBoite: string): Promise<boolean> => {
+  const response = await api.delete(`/agences/${agenceId}/types/${typeId}/boites/${numeroBoite}`);
+  return response.data.success;
+};
+
+// ─── STATISTIQUES ──────────────────────────────────────────────
+
+/**
+ * Récupérer les statistiques d'une agence
+ */
+export const getAgenceStats = async (id: number): Promise<{ total_boites: number; total_documents: number }> => {
+  const response = await api.get(`/agences/${id}/stats`);
+  return response.data.data;
 };

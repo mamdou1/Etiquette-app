@@ -56,7 +56,6 @@ const getById = async (req, res) => {
 };
 
 // ─── POST /api/types-document ─────────────────────────────────
-// Création d'un type (sans affectation aux agences)
 const create = async (req, res) => {
   try {
     const { nom, code, description } = req.body;
@@ -68,7 +67,6 @@ const create = async (req, res) => {
       });
     }
 
-    // Vérifier les doublons
     const existing = await TypeDocumentModel.findByNom(nom.trim());
     if (existing) {
       return res.status(409).json({
@@ -98,7 +96,6 @@ const create = async (req, res) => {
 };
 
 // ─── POST /api/types-document/:id/assign ──────────────────────
-// Affectation d'un type à des agences (séparé de la création)
 const assignToAgences = async (req, res) => {
   try {
     const id = parseInt(req.params.id);
@@ -144,7 +141,6 @@ const update = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Type non trouvé' });
     }
 
-    // Vérifier les doublons
     if (nom && nom.trim() !== type.nom) {
       const existing = await TypeDocumentModel.findByNom(nom.trim());
       if (existing && existing.id !== id) {
