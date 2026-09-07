@@ -1,6 +1,6 @@
 import React from "react";
 import LabelCard from "./LabelCard";
-import { BoxGroup, LabelSize, ColumnCount } from "../types";
+import { BoxGroup, LabelSize, ColumnCount, LabelsPerPage } from "../types";
 import { useSettings } from "../contexts/SettingsContext";
 
 interface Props {
@@ -10,6 +10,7 @@ interface Props {
   cols: ColumnCount;
   size: LabelSize;
   boxField: string;
+  labelsPerPage?: LabelsPerPage;
   metaFields?: Array<{ name: string; label: string; field_type: string }>;
 }
 
@@ -25,20 +26,23 @@ const PrintPreview: React.FC<Props> = ({
   cols,
   size,
   boxField,
+  labelsPerPage: propLabelsPerPage,
   metaFields = [],
 }) => {
-  const { fontSize, fontStyle } = useSettings();
+  const { fontSize, fontStyle, labelsPerPage: contextLabelsPerPage } = useSettings();
+
+  // Utiliser labelsPerPage du contexte ou de la prop
+  const itemsPerPage = contextLabelsPerPage || propLabelsPerPage || 2;
 
   const totalBoxes = boxes.length;
   const totalRecords = boxes.reduce((sum, b) => sum + b.records.length, 0);
 
-  const itemsPerPage = 4; // 4 étiquettes par page A4
-  // FIX 1: On aplatit tous les records pour ne rien perdre
+  // Aplatir tous les records
   const allRecords: FlatRecord[] = boxes.flatMap((box) =>
     box.records.map((record) => ({
       record: {
         ...record,
-        metaValues: (record as any).metaValues || { ...record }, // FIX ICI
+        metaValues: (record as any).metaValues || { ...record },
       },
       boxNumber: box.boxNumber,
     })),
@@ -49,6 +53,11 @@ const PrintPreview: React.FC<Props> = ({
     const start = pageIndex * itemsPerPage;
     const end = Math.min(start + itemsPerPage, allRecords.length);
     return allRecords.slice(start, end);
+  };
+
+  // Déterminer la classe de grille en fonction du nombre d'étiquettes
+  const getGridClass = () => {
+    return `label-grid-${itemsPerPage}`;
   };
 
   return (
@@ -68,6 +77,9 @@ const PrintPreview: React.FC<Props> = ({
         <span>
           <strong className="text-primary">{fields.length}</strong> champs
         </span>
+        <span>
+          <strong className="text-primary">{itemsPerPage}</strong> étiquettes/page
+        </span>
         <span className="text-accent">
           Label: {fontSize.labelSize}px | Valeur: {fontSize.valueSize}px | QR:{" "}
           {fontSize.qrSize}px
@@ -86,18 +98,16 @@ const PrintPreview: React.FC<Props> = ({
             key={pageIndex}
             className="a4-sheet a4-landscape mx-auto mb-6"
             style={{
-              pageBreakAfter: pageIndex < totalPages - 1 ? "always" : "avoid", // FIX: Force le saut de page
+              pageBreakAfter: pageIndex < totalPages - 1 ? "always" : "avoid",
             }}
           >
             <div
-              className="label-grid"
+              className={`label-grid ${getGridClass()}`}
               style={{
                 display: "grid",
-                gridTemplateColumns: "repeat(2, 1fr)",
-                gridTemplateRows: "repeat(2, 1fr)",
                 gap: "3mm",
                 width: "100%",
-                height: "100%", // FIX: Prend 100% de la hauteur de la feuille A4
+                height: "100%",
                 minHeight: "unset",
               }}
             >
@@ -125,8 +135,9 @@ const PrintPreview: React.FC<Props> = ({
                 </div>
               ))}
 
-              {pageRecords.length < 4 &&
-                Array.from({ length: 4 - pageRecords.length }).map((_, i) => (
+              {/* Remplir les espaces vides */}
+              {pageRecords.length < itemsPerPage &&
+                Array.from({ length: itemsPerPage - pageRecords.length }).map((_, i) => (
                   <div key={`empty-${i}`} style={{ visibility: "hidden" }} />
                 ))}
             </div>

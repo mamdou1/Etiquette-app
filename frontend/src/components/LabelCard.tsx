@@ -37,7 +37,7 @@ const LabelCard: React.FC<Props> = ({
       return formatValue(record[key]);
     }
 
-    // 2. Dans metaValues - FIX TS ICI
+    // 2. Dans metaValues
     const meta = record.metaValues as Record<string, any> | undefined;
     if (
       meta?.[key] !== undefined &&
@@ -56,7 +56,6 @@ const LabelCard: React.FC<Props> = ({
 
   // ─── Récupération du nom de l'agence ──────────────────────
   const agenceValue = useMemo(() => {
-    // Liste complète des noms possibles pour l'agence
     const agenceKeys = [
       "Nom de l' Agence",
       "Nom de l'Agence",
@@ -72,23 +71,20 @@ const LabelCard: React.FC<Props> = ({
       "libelle_agence"
     ];
     
-    // 1. Chercher par les clés exactes
     for (const key of agenceKeys) {
       const value = getFieldValue(key);
       if (value) return value;
     }
     
-    // 2. Chercher dans visibleFields
     for (const field of visibleFields) {
       const lowerField = field.toLowerCase();
       if (lowerField.includes("agence") || lowerField.includes("dgei") || 
-          lowerField.includes("nom") || lowerField.includes("agence")) {
+          lowerField.includes("nom")) {
         const value = getFieldValue(field);
         if (value) return value;
       }
     }
     
-    // 3. Chercher dans metaFields
     if (metaFields.length > 0) {
       for (const mf of metaFields) {
         const lowerLabel = mf.label.toLowerCase();
@@ -102,7 +98,6 @@ const LabelCard: React.FC<Props> = ({
       }
     }
     
-    // 4. Chercher dans tous les champs du record
     for (const key of Object.keys(record)) {
       const lowerKey = key.toLowerCase();
       if (lowerKey.includes("agence") || lowerKey.includes("dgei") || 
@@ -127,7 +122,6 @@ const LabelCard: React.FC<Props> = ({
 
         const value = getFieldValue(mf.name) || getFieldValue(mf.label);
         
-        // Vérifier si c'est l'agence
         const isAgence = value === agenceValue && agenceValue !== "" && 
           (mf.name.toLowerCase().includes("agence") || 
            mf.label.toLowerCase().includes("agence") ||
@@ -222,13 +216,13 @@ const LabelCard: React.FC<Props> = ({
     >
       {/* NOM DE L'AGENCE en haut - Utilise agenceSize */}
       {agenceValue && (
-        <div className="text-center mb-3 pb-2 border-b-2 border-border/60">
+        <div className="text-center mb-5 pb-4 border-b-2 border-border/60">
           <span
             className="font-mono font-extrabold text-primary tracking-wider"
             style={{ 
               fontSize: `${fontSize.agenceSize}px`, 
               letterSpacing: "0.15em",
-              lineHeight: "1.3",
+              lineHeight: "1.8",
               display: "block"
             }}
           >
@@ -243,17 +237,16 @@ const LabelCard: React.FC<Props> = ({
         </p>
       ) : (
         <>
-          {/* Valeurs centrales - Utilise valueSize */}
-          <div className="flex-1 space-y-1.5 py-1 text-center">
+          {/* Valeurs centrales avec espaces - Utilise valueSize */}
+          <div className="flex-1 space-y-4 py-3 text-center">
             {displayValues.map((value, index) => {
               // Vérifier si la valeur est le numéro de boîte
-              // On compare avec boxNumber pour ajouter "Boite N°" devant
               const isBoxNumber = value === boxNumber;
               
               return (
                 <div
                   key={index}
-                  className="font-mono p-1 rounded bg-white/50 hover:bg-white/80 transition-colors"
+                  className="font-mono p-3 rounded bg-white/50 hover:bg-white/80 transition-colors"
                 >
                   <span
                     className={`text-primary ${valueWeightClass} ${valueItalicClass}`}
@@ -261,6 +254,7 @@ const LabelCard: React.FC<Props> = ({
                       fontSize: valueSize,
                       whiteSpace: "normal",
                       wordBreak: "break-word",
+                      lineHeight: "2.0",
                     }}
                   >
                     {isBoxNumber ? `Boite N° ${value}` : value || "—"}
@@ -270,9 +264,9 @@ const LabelCard: React.FC<Props> = ({
             })}
           </div>
 
-          {/* QR Code en bas */}
-          <div className="mt-1 flex justify-center">
-            <div className="bg-white p-1 rounded shadow-sm border-border/30">
+          {/* QR Code en bas avec plus d'espace */}
+          <div className="mt-4 flex justify-center">
+            <div className="bg-white p-3 rounded shadow-sm border-border/30">
               <QRCodeSVG
                 value={qrData}
                 size={qrSize}

@@ -53,10 +53,12 @@ const SettingsPanel: React.FC<Props> = ({
     fontStyle,
     visibleFields,
     filters,
+    labelsPerPage,
     setCols,
     setSize,
     setFontSize,
     setFontStyle,
+    setLabelsPerPage,
     updateFilter,
     clearFilters,
     toggleField,
@@ -105,19 +107,16 @@ const SettingsPanel: React.FC<Props> = ({
     toggleField(key);
   };
 
-  // ✅ Fonction pour obtenir le label d'un champ
   const getFieldLabel = (fieldName: string): string => {
     const metaField = metaFields.find(mf => mf.name === fieldName);
     return metaField?.label || fieldName;
   };
 
-  // ✅ Fonction pour obtenir le type d'un champ
   const getFieldType = (fieldName: string): string => {
     const metaField = metaFields.find(mf => mf.name === fieldName);
     return metaField?.field_type || 'text';
   };
 
-  // ✅ Fonction pour vérifier si un champ est de type date
   const isDateFieldType = (fieldName: string): boolean => {
     const fieldType = getFieldType(fieldName);
     return fieldType === 'date' || isDateField(fieldName);
@@ -310,9 +309,31 @@ const SettingsPanel: React.FC<Props> = ({
         )}
       </div>
 
+      {/* ✅ NOUVEAU - Nombre d'étiquettes par page */}
+      <div>
+        <p className="font-mono text-[10px] uppercase tracking-widest text-muted mb-3">
+          05 - Étiquettes par page
+        </p>
+        <div className="flex gap-2">
+          {([2, 3] as const).map((n) => (
+            <button
+              key={n}
+              onClick={() => setLabelsPerPage(n)}
+              className={`flex-1 py-2 border font-mono text-sm font-medium transition-colors
+                ${labelsPerPage === n ? "bg-accent border-accent text-white" : "bg-white border-border hover:border-muted"}`}
+            >
+              {n} étiquettes
+            </button>
+          ))}
+        </div>
+        <p className="mt-2 font-mono text-[10px] text-muted text-center">
+          {labelsPerPage === 2 ? "2 colonnes × 1 ligne" : "3 colonnes × 1 ligne"}
+        </p>
+      </div>
+
       {/* <div>
         <p className="font-mono text-[10px] uppercase tracking-widest text-muted mb-3">
-          05 - Colonnes
+          06 - Colonnes
         </p>
         <div className="flex gap-2">
           {([2, 3, 4] as ColumnCount[]).map((n) => (
@@ -378,7 +399,7 @@ const SettingsPanel: React.FC<Props> = ({
           />
         </div>
 
-        {/* ✅ NOUVEAU - Réglage spécifique pour l'agence */}
+        {/* ✅ Réglage spécifique pour l'agence */}
         <div className="mb-3">
           <div className="flex justify-between font-mono text-xs text-muted">
             <label>Agence</label>

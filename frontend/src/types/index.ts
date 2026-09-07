@@ -31,6 +31,7 @@ export interface UploadResponse {
 
 export type ColumnCount = 2 | 3 | 4;
 export type LabelSize = "sm" | "md" | "lg";
+export type LabelsPerPage = 2 | 3;
 
 export interface FieldFilter {
   value?: string;
@@ -44,6 +45,7 @@ export interface PrintSettings {
   cols: ColumnCount;
   size: LabelSize;
   visibleFields: string[];
+  labelsPerPage: LabelsPerPage;
 }
 
 export interface Archive {

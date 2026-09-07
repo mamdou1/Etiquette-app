@@ -19,7 +19,7 @@ body {
   background: white;
   width: 1123px; /* 297mm */
   height: 794px; /* 210mm - hauteur fixe */
-  padding: 6mm 7mm; /* Marges réduites pour plus d'espace */
+  padding: 6mm 7mm;
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12);
   position: relative;
   margin: 0 auto 16px auto;
@@ -38,15 +38,25 @@ body {
   page-break-after: avoid;
 }
 
-/* ─── Grille 2×2 pour 4 étiquettes ────────────────────── */
+/* ─── Grille dynamique pour 2 ou 3 étiquettes ────────── */
 .label-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  grid-template-rows: repeat(2, 1fr);
   gap: 3mm;
   width: 100%;
   height: 100%;
   min-height: unset;
+}
+
+/* 2 étiquettes par page : 2 colonnes, 1 ligne */
+.label-grid-2 {
+  grid-template-columns: repeat(2, 1fr);
+  grid-template-rows: 1fr;
+}
+
+/* 3 étiquettes par page : 3 colonnes, 1 ligne */
+.label-grid-3 {
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: 1fr;
 }
 
 /* ─── Étiquette STYLISÉE ─────────────────────────────── */
@@ -119,6 +129,34 @@ body {
   letter-spacing: 0.05em;
 }
 
+/* ─── Ajustements pour le contenu ────────────────────── */
+.label-card .content {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  flex: 1;
+  gap: 1px;
+}
+
+/* Style pour l'agence en haut */
+.label-card .agence-name {
+  font-size: 1.1rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  color: #1a1a2e;
+  margin-bottom: 2px;
+  line-height: 1.2;
+}
+
+/* Style pour le QR code en bas */
+.label-card .qr-wrapper {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 2px;
+}
+
 /* ─── Impression ──────────────────────────────────────── */
 @media print {
   .no-print {
@@ -154,6 +192,18 @@ body {
     gap: 2mm !important;
   }
 
+  /* 2 étiquettes par page en impression */
+  .label-grid-2 {
+    grid-template-columns: repeat(2, 1fr) !important;
+    grid-template-rows: 1fr !important;
+  }
+
+  /* 3 étiquettes par page en impression */
+  .label-grid-3 {
+    grid-template-columns: repeat(3, 1fr) !important;
+    grid-template-rows: 1fr !important;
+  }
+
   .label-card {
     border: 1px solid #999 !important;
     padding: 2mm !important;
@@ -175,6 +225,15 @@ body {
 
   .label-card .box-number {
     font-size: 7pt !important;
+  }
+
+  .label-card .agence-name {
+    font-size: 14pt !important;
+  }
+
+  .label-card .qr-wrapper svg {
+    width: 40px !important;
+    height: 40px !important;
   }
 
   @page {
@@ -201,8 +260,8 @@ body {
   }
   
   .label-grid {
-    grid-template-columns: 1fr;
-    grid-template-rows: auto;
+    grid-template-columns: 1fr !important;
+    grid-template-rows: auto !important;
     gap: 10px;
   }
   
@@ -212,42 +271,36 @@ body {
   }
 }
 
-/* ─── Ajustements pour le contenu ────────────────────── */
-/* Si tu veux que le texte soit mieux centré */
-.label-card .content {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  text-align: center;
-  flex: 1;
-  gap: 1px;
+
+/* ─── Grille dynamique pour 2 ou 3 étiquettes ────────── */
+.label-grid {
+  display: grid;
+  gap: 3mm;
+  width: 100%;
+  height: 100%;
+  min-height: unset;
 }
 
-/* Style pour l'agence en haut */
-.label-card .agence-name {
-  font-size: 1.1rem;
-  font-weight: 800;
-  letter-spacing: 0.1em;
-  color: #1a1a2e;
-  margin-bottom: 2px;
-  line-height: 1.2;
+/* 2 étiquettes par page : 2 colonnes, 1 ligne */
+.label-grid-2 {
+  grid-template-columns: repeat(2, 1fr);
+  grid-template-rows: 1fr;
 }
 
-/* Style pour le QR code en bas */
-.label-card .qr-wrapper {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 2px;
+/* 3 étiquettes par page : 3 colonnes, 1 ligne */
+.label-grid-3 {
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: 1fr;
 }
 
 @media print {
-  .label-card .agence-name {
-    font-size: 14pt !important;
+  .label-grid-2 {
+    grid-template-columns: repeat(2, 1fr) !important;
+    grid-template-rows: 1fr !important;
   }
 
-  .label-card .qr-wrapper svg {
-    width: 40px !important;
-    height: 40px !important;
+  .label-grid-3 {
+    grid-template-columns: repeat(3, 1fr) !important;
+    grid-template-rows: 1fr !important;
   }
 }

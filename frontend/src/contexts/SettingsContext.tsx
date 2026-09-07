@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
-import { ColumnCount, LabelSize, FontSize, FontStyle, FieldFilters } from '../types';
+import { ColumnCount, LabelSize, FontSize, FontStyle, FieldFilters, LabelsPerPage } from '../types';
 
 interface SettingsContextValue {
   // États
@@ -9,6 +9,7 @@ interface SettingsContextValue {
   fontStyle: FontStyle;
   visibleFields: string[];
   filters: FieldFilters;
+  labelsPerPage: LabelsPerPage;
   
   // Actions
   setCols: (cols: ColumnCount) => void;
@@ -17,6 +18,7 @@ interface SettingsContextValue {
   setFontStyle: (fontStyle: FontStyle) => void;
   setVisibleFields: (fields: string[]) => void;
   setFilters: (filters: FieldFilters) => void;
+  setLabelsPerPage: (count: LabelsPerPage) => void;
   updateFilter: (field: string, key: 'value' | 'from' | 'to', value: string) => void;
   clearFilters: () => void;
   toggleField: (key: string) => void;
@@ -46,6 +48,7 @@ export const SettingsProvider: React.FC<{ children: ReactNode }> = ({ children }
   const [fontStyle, setFontStyle] = useState<FontStyle>(DEFAULT_FONT_STYLE);
   const [visibleFields, setVisibleFields] = useState<string[]>([]);
   const [filters, setFilters] = useState<FieldFilters>({});
+  const [labelsPerPage, setLabelsPerPage] = useState<LabelsPerPage>(2);
 
   const updateFilter = (field: string, key: 'value' | 'from' | 'to', value: string) => {
     setFilters(prev => ({
@@ -83,12 +86,14 @@ export const SettingsProvider: React.FC<{ children: ReactNode }> = ({ children }
         fontStyle,
         visibleFields,
         filters,
+        labelsPerPage,
         setCols,
         setSize,
         setFontSize,
         setFontStyle,
         setVisibleFields,
         setFilters,
+        setLabelsPerPage,
         updateFilter,
         clearFilters,
         toggleField,

@@ -38,27 +38,33 @@ const PrintModal: React.FC<PrintModalProps> = ({
   visibleFields: propVisibleFields,
   metaFields = [],
 }) => {
-  const { visibleFields: contextVisibleFields, cols, size, setVisibleFields } = useSettings();
+  const { 
+    visibleFields: contextVisibleFields, 
+    cols, 
+    size, 
+    setVisibleFields,
+    labelsPerPage
+  } = useSettings();
   
-  // ✅ Utiliser les metaFields pour les champs (priorité)
+  // Utiliser les metaFields pour les champs (priorité)
   const fieldsFromMeta = metaFields.map(mf => mf.name);
   
-  // ✅ Prioriser les metaFields, sinon utiliser les propFields
+  // Prioriser les metaFields, sinon utiliser les propFields
   const fieldsToUse = fieldsFromMeta.length > 0 
     ? fieldsFromMeta 
     : (propFields && propFields.length > 0 ? propFields : []);
   
-  // ✅ Si aucun champ n'est trouvé, utiliser des champs par défaut
+  // Si aucun champ n'est trouvé, utiliser des champs par défaut
   const finalFields = fieldsToUse.length > 0 
     ? fieldsToUse 
     : ['numero_boite', 'annee'];
   
-  // ✅ Mettre à jour les visibleFields avec les champs disponibles
+  // Mettre à jour les visibleFields avec les champs disponibles
   const visibleFields = propVisibleFields && propVisibleFields.length > 0 
     ? propVisibleFields 
     : (contextVisibleFields.length > 0 ? contextVisibleFields : finalFields);
   
-  // ✅ Mettre à jour le contexte avec les nouveaux champs si nécessaire
+  // Mettre à jour le contexte avec les nouveaux champs si nécessaire
   React.useEffect(() => {
     if (finalFields.length > 0 && contextVisibleFields.length === 0) {
       setVisibleFields(finalFields);
@@ -103,7 +109,7 @@ const PrintModal: React.FC<PrintModalProps> = ({
               onPrint={onPrint}
               onReset={onReset}
               fields={finalFields}
-              metaFields={metaFields}  // ✅ Passer les metaFields complets
+              metaFields={metaFields}
             />
             
             <div className="flex-1 overflow-y-auto p-6 print:p-0 print:overflow-visible">
@@ -115,6 +121,7 @@ const PrintModal: React.FC<PrintModalProps> = ({
                   cols={cols}
                   size={size}
                   boxField="numero_boite"
+                  labelsPerPage={labelsPerPage}
                   metaFields={metaFields}
                 />
               ) : (
