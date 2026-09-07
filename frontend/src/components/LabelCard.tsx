@@ -271,7 +271,7 @@ const LabelCard: React.FC<Props> = ({
           </div>
 
           {/* QR Code en bas */}
-          <div className="mt-1 flex justify-end">
+          <div className="mt-1 flex justify-center">
             <div className="bg-white p-1 rounded shadow-sm border-border/30">
               <QRCodeSVG
                 value={qrData}

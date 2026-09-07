@@ -18,14 +18,15 @@ body {
 .a4-sheet {
   background: white;
   width: 1123px; /* 297mm */
-  height: 794px; /* FIX: height au lieu de min-height */
-  padding: 7mm 8mm; /* REDUIT de 25px 30px */
+  height: 794px; /* 210mm - hauteur fixe */
+  padding: 6mm 7mm; /* Marges réduites pour plus d'espace */
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12);
   position: relative;
   margin: 0 auto 16px auto;
   box-sizing: border-box;
   page-break-after: always;
-  overflow: hidden; /* FIX: Empêche de pousser si ça dépasse */
+  overflow: hidden;
+  border-radius: 4px;
 }
 
 .a4-sheet.a4-landscape {
@@ -37,31 +38,37 @@ body {
   page-break-after: avoid;
 }
 
-/* ─── Grille 2×2 ──────────────────────────────────────── */
+/* ─── Grille 2×2 pour 4 étiquettes ────────────────────── */
 .label-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  grid-template-rows: repeat(2, 1fr); /* 2 lignes égales */
-  gap: 3mm; /* REDUIT de 16px */
+  grid-template-rows: repeat(2, 1fr);
+  gap: 3mm;
   width: 100%;
-  height: 100%; /* Prend toute la hauteur */
-  min-height: unset; /* ENLEVE le 680px */
+  height: 100%;
+  min-height: unset;
 }
 
 /* ─── Étiquette STYLISÉE ─────────────────────────────── */
 .label-card {
   border: 1px solid #c8c5bf;
-  padding: 2.5mm; /* REDUIT de 14px 16px */
+  padding: 3mm;
   position: relative;
-  overflow: hidden; /* Le contenu dépasse = coupé dans la carte */
+  overflow: hidden;
   background: white;
-  border-radius: 3px;
+  border-radius: 4px;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
-  height: 100%; /* Prend 100% de la case */
-  min-height: unset; /* ENLEVE le 200px */
+  justify-content: center;
+  height: 100%;
+  min-height: unset;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.label-card:hover {
+  transform: scale(1.01);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
 
 /* Bande colorée sur le côté */
@@ -70,10 +77,10 @@ body {
   position: absolute;
   top: 0;
   left: 0;
-  width: 3px; /* Plus fine */
+  width: 4px;
   height: 100%;
   background: linear-gradient(180deg, #e63946, #f4a261);
-  border-radius: 3px 0 0 3px;
+  border-radius: 4px 0 0 4px;
 }
 
 /* Badge de statut */
@@ -81,14 +88,14 @@ body {
   display: inline-block;
   padding: 0.15rem 0.6rem;
   border-radius: 9999px;
-  font-size: 0.6rem;
+  font-size: 0.55rem;
   font-weight: 700;
   letter-spacing: 0.05em;
 }
 
-/* Style spécial pour les champs */
+/* Style pour les champs */
 .label-card .field-label {
-  font-size: 0.55rem; /* REDUIT */
+  font-size: 0.5rem;
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -97,11 +104,19 @@ body {
 }
 
 .label-card .field-value {
-  font-size: 0.8rem; /* REDUIT */
+  font-size: 0.75rem;
   font-weight: 500;
   color: #1a1a2e;
   line-height: 1.2;
   word-break: break-word;
+}
+
+/* Style pour le numéro de boîte */
+.label-card .box-number {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #1a1a2e;
+  letter-spacing: 0.05em;
 }
 
 /* ─── Impression ──────────────────────────────────────── */
@@ -124,10 +139,11 @@ body {
   .a4-sheet {
     box-shadow: none !important;
     width: 100% !important;
-    height: 100vh !important; /* 100% de la page */
+    height: 100vh !important;
     margin: 0 !important;
-    padding: 6mm 7mm !important; /* Encore plus petit */
+    padding: 5mm 6mm !important;
     overflow: hidden !important;
+    border-radius: 0 !important;
   }
 
   .a4-sheet:last-child {
@@ -135,21 +151,30 @@ body {
   }
 
   .label-grid {
-    gap: 2.5mm !important;
+    gap: 2mm !important;
   }
 
   .label-card {
-    border: 1px solid #999 !important; /* Plus visible laser */
+    border: 1px solid #999 !important;
     padding: 2mm !important;
     box-shadow: none !important;
     border-radius: 2px !important;
   }
-  
-  .label-card .field-label {
-    font-size: 7pt !important; /* Force petit en print */
+
+  .label-card::before {
+    width: 2px !important;
   }
+
+  .label-card .field-label {
+    font-size: 6pt !important;
+  }
+  
   .label-card .field-value {
-    font-size: 9pt !important;
+    font-size: 8pt !important;
+  }
+
+  .label-card .box-number {
+    font-size: 7pt !important;
   }
 
   @page {
@@ -164,12 +189,15 @@ body {
     width: 100%;
     height: auto;
     padding: 16px;
+    aspect-ratio: 297 / 210;
   }
 }
 
 @media (max-width: 768px) {
   .a4-sheet {
     padding: 12px;
+    aspect-ratio: auto;
+    height: auto;
   }
   
   .label-grid {
@@ -181,5 +209,45 @@ body {
   .label-card {
     min-height: 160px;
     padding: 10px 12px;
+  }
+}
+
+/* ─── Ajustements pour le contenu ────────────────────── */
+/* Si tu veux que le texte soit mieux centré */
+.label-card .content {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  flex: 1;
+  gap: 1px;
+}
+
+/* Style pour l'agence en haut */
+.label-card .agence-name {
+  font-size: 1.1rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  color: #1a1a2e;
+  margin-bottom: 2px;
+  line-height: 1.2;
+}
+
+/* Style pour le QR code en bas */
+.label-card .qr-wrapper {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 2px;
+}
+
+@media print {
+  .label-card .agence-name {
+    font-size: 14pt !important;
+  }
+
+  .label-card .qr-wrapper svg {
+    width: 40px !important;
+    height: 40px !important;
   }
 }
