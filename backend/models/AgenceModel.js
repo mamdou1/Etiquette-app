@@ -108,82 +108,74 @@ const AgenceModel = {
     const agence = await AgenceModel.findById(id);
     if (!agence) return null;
 
-    // 1. Récupérer les types de documents de l'agence
-    const [types] = await pool.execute(
-      `SELECT td.* 
-       FROM type_documents td
-       INNER JOIN agence_type_documents atd ON td.id = atd.type_document_id
-       WHERE atd.agence_id = ? AND td.active = TRUE
-       ORDER BY td.nom ASC`,
-      [id]
-    );
-
-    // 2. Pour chaque type, récupérer les années et boîtes depuis meta_field_values
-    const typesWithData = await Promise.all(types.map(async (type) => {
-      // 2a. Récupérer les années distinctes
-      const [annees] = await pool.execute(
-        `SELECT DISTINCT mfv.annee
+    // Deux requêtes constantes, quel que soit le nombre d'années ou de boîtes.
+    // L'ancienne version faisait une requête pour chaque année de chaque type.
+    const [[types], [values]] = await Promise.all([
+      pool.execute(
+        `SELECT td.*
+         FROM type_documents td
+         INNER JOIN agence_type_documents atd ON td.id = atd.type_document_id
+         WHERE atd.agence_id = ? AND td.active = TRUE
+         ORDER BY td.nom ASC`,
+        [id]
+      ),
+      pool.execute(
+        `SELECT mfv.type_document_id, mfv.annee, mfv.numero_boite, mfv.value,
+                mf.name, mf.label, mf.field_type
          FROM meta_field_values mfv
-         WHERE mfv.agence_id = ? AND mfv.type_document_id = ?
-         ORDER BY mfv.annee DESC`,
-        [id, type.id]
-      );
+         JOIN meta_fields mf ON mf.id = mfv.meta_field_id
+         WHERE mfv.agence_id = ?
+         ORDER BY mfv.type_document_id, mfv.annee DESC, mfv.numero_boite ASC, mf.position ASC`,
+        [id]
+      ),
+    ]);
 
-      // 2b. Pour chaque année, récupérer les boîtes
-      const anneesWithBoites = await Promise.all(annees.map(async ({ annee }) => {
-        const [boites] = await pool.execute(
-          `SELECT 
-            mfv.numero_boite,
-            COUNT(DISTINCT mfv.id) as total_documents
-           FROM meta_field_values mfv
-           WHERE mfv.agence_id = ? AND mfv.type_document_id = ? AND mfv.annee = ?
-           GROUP BY mfv.numero_boite
-           ORDER BY mfv.numero_boite ASC`,
-          [id, type.id, annee]
-        );
-
-        // 2c. Récupérer les caissiers depuis les meta_values (si le champ existe)
-        // ✅ Utilisation de ANY_VALUE pour éviter l'erreur ONLY_FULL_GROUP_BY
-        const [caissiersData] = await pool.execute(
-          `SELECT ANY_VALUE(mfv.value) as caissiers
-           FROM meta_field_values mfv
-           JOIN meta_fields mf ON mfv.meta_field_id = mf.id
-           WHERE mfv.agence_id = ? AND mfv.type_document_id = ? AND mfv.annee = ?
-           AND mf.name = 'caissiers'
-           GROUP BY mfv.numero_boite`,
-          [id, type.id, annee]
-        );
-
-        const caissiersMap = {};
-        caissiersData.forEach(c => {
-          if (c.caissiers) {
-            caissiersMap[c.caissiers] = c.caissiers.split(',').filter(Boolean);
-          }
-        });
-
-        // Associer les caissiers aux boîtes
-        const boitesWithCaissiers = boites.map(b => ({
-          ...b,
-          caissiers: caissiersMap[b.numero_boite] || [],
+    const grouped = new Map();
+    values.forEach((row) => {
+      const typeKey = String(row.type_document_id);
+      const yearKey = String(row.annee || 'Sans année');
+      const boxKey = String(row.numero_boite);
+      if (!grouped.has(typeKey)) grouped.set(typeKey, new Map());
+      const years = grouped.get(typeKey);
+      if (!years.has(yearKey)) years.set(yearKey, new Map());
+      const boxes = years.get(yearKey);
+      if (!boxes.has(boxKey)) {
+        boxes.set(boxKey, {
+          numero_boite: row.numero_boite,
+          total_documents: 0,
+          caissiers: [],
           date_debut: null,
           date_fin: null,
-        }));
+          metaValues: {},
+        });
+      }
 
+      const box = boxes.get(boxKey);
+      box.total_documents += 1;
+      box.metaValues[row.name] = { label: row.label, field_type: row.field_type, value: row.value };
+      if (row.name.toLowerCase() === 'caissiers' && row.value) {
+        box.caissiers = String(row.value).split(',').map(value => value.trim()).filter(Boolean);
+      }
+    });
+
+    const typesWithData = types.map((type) => {
+      const years = grouped.get(String(type.id)) || new Map();
+      const annees = Array.from(years.entries()).map(([annee, boxes]) => {
+        const boites = Array.from(boxes.values());
         return {
           annee,
-          boites: boitesWithCaissiers,
+          boites,
           total_boites: boites.length,
-          total_documents: boites.reduce((sum, b) => sum + b.total_documents, 0),
+          total_documents: boites.reduce((sum, box) => sum + box.total_documents, 0),
         };
-      }));
-
+      });
       return {
         ...type,
-        annees: anneesWithBoites,
-        total_boites: anneesWithBoites.reduce((sum, a) => sum + a.total_boites, 0),
-        total_documents: anneesWithBoites.reduce((sum, a) => sum + a.total_documents, 0),
+        annees,
+        total_boites: annees.reduce((sum, year) => sum + year.total_boites, 0),
+        total_documents: annees.reduce((sum, year) => sum + year.total_documents, 0),
       };
-    }));
+    });
 
     return {
       agence,

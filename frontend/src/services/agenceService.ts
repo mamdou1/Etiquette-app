@@ -26,6 +26,11 @@ export interface HierarchyBoite {
   caissiers: string[];
   date_debut: string;
   date_fin: string;
+  metaValues: Record<string, {
+    label: string;
+    field_type: string;
+    value: string;
+  }>;
 }
 
 export interface HierarchyAnnee {

@@ -12,11 +12,13 @@ interface Props {
   boxField: string;
   labelsPerPage?: LabelsPerPage;
   metaFields?: Array<{ name: string; label: string; field_type: string }>;
+  selectedYears?: string[];
 }
 
 type FlatRecord = {
   record: any;
   boxNumber: string | number;
+  year?: string;
 };
 
 const PrintPreview: React.FC<Props> = ({
@@ -28,16 +30,13 @@ const PrintPreview: React.FC<Props> = ({
   boxField,
   labelsPerPage: propLabelsPerPage,
   metaFields = [],
+  selectedYears = [],
 }) => {
-  const { fontSize, fontStyle, labelsPerPage: contextLabelsPerPage } = useSettings();
+  const { fontSize, fontStyle, labelsPerPage: contextLabelsPerPage, filters } = useSettings();
 
-  // Utiliser labelsPerPage du contexte ou de la prop
   const itemsPerPage = contextLabelsPerPage || propLabelsPerPage || 2;
 
-  const totalBoxes = boxes.length;
-  const totalRecords = boxes.reduce((sum, b) => sum + b.records.length, 0);
-
-  // Aplatir tous les records
+  // Aplatir tous les records avec l'année
   const allRecords: FlatRecord[] = boxes.flatMap((box) =>
     box.records.map((record) => ({
       record: {
@@ -45,20 +44,60 @@ const PrintPreview: React.FC<Props> = ({
         metaValues: (record as any).metaValues || { ...record },
       },
       boxNumber: box.boxNumber,
+      year: box.year || extractYearFromBoxNumber(box.boxNumber) || '',
     })),
   );
-  const totalPages = Math.ceil(allRecords.length / itemsPerPage);
+
+  const recordMatchesFilters = (record: any) => Object.entries(filters).every(([field, filter]) => {
+    if (!fields.includes(field)) return true;
+    const value = String(record[field] ?? record.metaValues?.[field] ?? '').trim();
+    if (filter.value?.trim() && !value.toLocaleLowerCase().includes(filter.value.trim().toLocaleLowerCase())) {
+      return false;
+    }
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      if (filter.from && value < filter.from) return false;
+      if (filter.to && value > filter.to) return false;
+    }
+    return true;
+  });
+
+  const recordsToDisplay = allRecords.filter(item =>
+    (selectedYears.length === 0 || selectedYears.includes(item.year || '')) &&
+    recordMatchesFilters(item.record)
+  );
+
+  const totalBoxes = new Set(recordsToDisplay.map(item => item.boxNumber)).size;
+  const totalRecords = recordsToDisplay.length;
+
+  const sortedRecords = [...recordsToDisplay].sort((a, b) => {
+    if (a.year !== b.year) {
+      return (a.year || '').localeCompare(b.year || '');
+    }
+    return String(a.boxNumber).localeCompare(String(b.boxNumber), undefined, { numeric: true });
+  });
+
+  const totalPages = Math.ceil(sortedRecords.length / itemsPerPage);
 
   const getRecordsForPage = (pageIndex: number) => {
     const start = pageIndex * itemsPerPage;
-    const end = Math.min(start + itemsPerPage, allRecords.length);
-    return allRecords.slice(start, end);
+    const end = Math.min(start + itemsPerPage, sortedRecords.length);
+    return sortedRecords.slice(start, end);
   };
 
-  // Déterminer la classe de grille en fonction du nombre d'étiquettes
   const getGridClass = () => {
     return `label-grid-${itemsPerPage}`;
   };
+
+  function extractYearFromBoxNumber(boxNumber: string): string | null {
+    const match = boxNumber.match(/\/(20\d{2})/);
+    return match ? match[1] : null;
+  }
+
+  const uniqueYearsInBoxes = [...new Set(boxes.map(b => b.year || extractYearFromBoxNumber(b.boxNumber) || '').filter(Boolean))].sort();
+
+  const displayYears = selectedYears.length > 0 
+    ? uniqueYearsInBoxes.filter(year => selectedYears.includes(year))
+    : uniqueYearsInBoxes;
 
   return (
     <div className="flex-1 p-8 overflow-y-auto print-container bg-[#f0ede8]">
@@ -80,6 +119,18 @@ const PrintPreview: React.FC<Props> = ({
         <span>
           <strong className="text-primary">{itemsPerPage}</strong> étiquettes/page
         </span>
+        {displayYears.length > 0 && (
+          <span>
+            <strong className="text-primary">{displayYears.length}</strong> année
+            {displayYears.length > 1 ? "s" : ""}:{" "}
+            <span className="text-accent">{displayYears.join(", ")}</span>
+          </span>
+        )}
+        {selectedYears.length > 0 && uniqueYearsInBoxes.length > selectedYears.length && (
+          <span className="text-amber-600">
+            ⚠️ Filtré: seules {selectedYears.join(", ")} sont affichées
+          </span>
+        )}
         <span className="text-accent">
           Label: {fontSize.labelSize}px | Valeur: {fontSize.valueSize}px | QR:{" "}
           {fontSize.qrSize}px
@@ -97,28 +148,14 @@ const PrintPreview: React.FC<Props> = ({
           <div
             key={pageIndex}
             className="a4-sheet a4-landscape mx-auto mb-6"
-            style={{
-              pageBreakAfter: pageIndex < totalPages - 1 ? "always" : "avoid",
-            }}
           >
-            <div
-              className={`label-grid ${getGridClass()}`}
-              style={{
-                display: "grid",
-                gap: "3mm",
-                width: "100%",
-                height: "100%",
-                minHeight: "unset",
-              }}
-            >
+            {/* ✅ Plus de pageYear ici — c'était la source du bug page 1 */}
+
+            <div className={`label-grid ${getGridClass()}`}>
               {pageRecords.map((item, idx) => (
                 <div
                   key={`${item.boxNumber}-${idx}-${pageIndex}`}
-                  style={{
-                    breakInside: "avoid",
-                    pageBreakInside: "avoid",
-                    height: "100%",
-                  }}
+                  className="label-grid-cell"
                 >
                   <LabelCard
                     record={item.record}
@@ -135,10 +172,12 @@ const PrintPreview: React.FC<Props> = ({
                 </div>
               ))}
 
-              {/* Remplir les espaces vides */}
               {pageRecords.length < itemsPerPage &&
                 Array.from({ length: itemsPerPage - pageRecords.length }).map((_, i) => (
-                  <div key={`empty-${i}`} style={{ visibility: "hidden" }} />
+                  <div
+                    key={`empty-${i}`}
+                    className="label-grid-cell label-grid-cell-empty"
+                  />
                 ))}
             </div>
           </div>

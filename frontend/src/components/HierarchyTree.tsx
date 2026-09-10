@@ -53,11 +53,12 @@ const HierarchyTree: React.FC<HierarchyTreeProps> = ({
   getPaginatedBoites,
   metaFields = [],
 }) => {
-  // ✅ Fonction pour trouver une valeur dans une boîte
+  // Les étiquettes utilisent les valeurs réellement enregistrées par boîte.
   const findValueInBoite = (boite: any, fieldName: string): string | null => {
     // 1. Vérifier dans meta_values
-    if (boite.meta_values && boite.meta_values[fieldName] !== undefined && boite.meta_values[fieldName] !== '') {
-      return boite.meta_values[fieldName];
+    const storedValue = boite.metaValues?.[fieldName];
+    if (storedValue?.value !== undefined && storedValue.value !== '') {
+      return String(storedValue.value);
     }
 
     // 2. Vérifier directement dans la boîte
@@ -94,9 +95,27 @@ const HierarchyTree: React.FC<HierarchyTreeProps> = ({
       type_document: typeNom,
       caissiers: boite.caissiers?.join(', ') || '',
       annee: annee,
+      metaValues: {},
+      __metaFields: [],
     };
 
-    // ✅ Mapper les noms de champs entre les metaFields et les données
+    // Conserver tous les champs, y compris ceux d'un type différent du
+    // premier type de l'agence.
+    Object.entries(boite.metaValues || {}).forEach(([name, field]: [string, any]) => {
+      const value = field?.value ?? field;
+      record[name] = value;
+      record.metaValues[name] = value;
+      record.__metaFields.push({
+        id: 0,
+        name,
+        label: field?.label || name,
+        field_type: field?.field_type || 'text',
+      });
+    });
+
+    return record;
+
+    /* Legacy mapping kept below for reference; records now return above.
     const fieldMapping: Record<string, string> = {
       'Date de Production': 'date_production',
       'date_production': 'Date de Production',
@@ -130,7 +149,7 @@ const HierarchyTree: React.FC<HierarchyTreeProps> = ({
       }
       
       // 4. Si toujours pas trouvé, créer une valeur par défaut
-      if (!value) {
+      if (!value) { return;
         // Utiliser les données existantes
         const defaultValues: Record<string, string> = {
           'Date de Production': `01/01/${annee}`,
@@ -165,6 +184,7 @@ const HierarchyTree: React.FC<HierarchyTreeProps> = ({
     if (!record['numero_boite']) record['numero_boite'] = boite.numero_boite;
     if (!record['annee']) record['annee'] = annee;
 
+    */
     return record;
   };
 
@@ -177,6 +197,7 @@ const HierarchyTree: React.FC<HierarchyTreeProps> = ({
           boxes.push({
             boxNumber: boite.numero_boite,
             records: [buildRecord(boite, type.nom, annee.annee)],
+            year: annee.annee,
           });
         });
       });
@@ -191,6 +212,7 @@ const HierarchyTree: React.FC<HierarchyTreeProps> = ({
         boxes.push({
           boxNumber: boite.numero_boite,
           records: [buildRecord(boite, type.nom, annee.annee)],
+          year: annee.annee,
         });
       });
     });
@@ -201,6 +223,7 @@ const HierarchyTree: React.FC<HierarchyTreeProps> = ({
     return annee.boites.map((boite: any) => ({
       boxNumber: boite.numero_boite,
       records: [buildRecord(boite, type.nom, annee.annee)],
+      year: annee.annee,
     }));
   };
 
@@ -331,6 +354,7 @@ const HierarchyTree: React.FC<HierarchyTreeProps> = ({
                                     const boxes = [{
                                       boxNumber: boite.numero_boite,
                                       records: [buildRecord(boite, type.nom, annee.annee)],
+                                      year: annee.annee,
                                     }];
                                     onPrintBoxes(boxes, `Boîte ${boite.numero_boite}`, 'boite');
                                   }}

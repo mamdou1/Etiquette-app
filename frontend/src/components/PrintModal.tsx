@@ -45,42 +45,45 @@ const PrintModal: React.FC<PrintModalProps> = ({
     setVisibleFields,
     labelsPerPage
   } = useSettings();
+  const initializedFieldsRef = React.useRef('');
   
-  // Utiliser les metaFields pour les champs (priorité)
   const fieldsFromMeta = metaFields.map(mf => mf.name);
   
-  // Prioriser les metaFields, sinon utiliser les propFields
   const fieldsToUse = fieldsFromMeta.length > 0 
     ? fieldsFromMeta 
     : (propFields && propFields.length > 0 ? propFields : []);
   
-  // Si aucun champ n'est trouvé, utiliser des champs par défaut
   const finalFields = fieldsToUse.length > 0 
     ? fieldsToUse 
     : ['numero_boite', 'annee'];
   
-  // Mettre à jour les visibleFields avec les champs disponibles
-  const visibleFields = propVisibleFields && propVisibleFields.length > 0 
-    ? propVisibleFields 
-    : (contextVisibleFields.length > 0 ? contextVisibleFields : finalFields);
+  const visibleFields = contextVisibleFields.filter(field => finalFields.includes(field));
   
-  // Mettre à jour le contexte avec les nouveaux champs si nécessaire
   React.useEffect(() => {
-    if (finalFields.length > 0 && contextVisibleFields.length === 0) {
-      setVisibleFields(finalFields);
+    const fieldsKey = finalFields.join('|');
+    if (!isOpen) {
+      initializedFieldsRef.current = '';
+      return;
     }
-  }, [finalFields, contextVisibleFields.length, setVisibleFields]);
+    if (!fieldsKey || initializedFieldsRef.current === fieldsKey) return;
+
+    // Conserver l'ordre choisi pour les champs communs, puis ajouter les
+    // champs du type sélectionné. Ainsi le panneau et l'aperçu restent alignés.
+    const retained = contextVisibleFields.filter(field => finalFields.includes(field));
+    setVisibleFields([...retained, ...finalFields.filter(field => !retained.includes(field))]);
+    initializedFieldsRef.current = fieldsKey;
+  }, [isOpen, finalFields.join('|'), contextVisibleFields, setVisibleFields]);
 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 overflow-y-auto" onClick={onClose}>
+    <div className="print-modal fixed inset-0 bg-black/50 z-50 overflow-y-auto" onClick={onClose}>
       <div className="min-h-screen flex items-center justify-center p-4">
         <div 
-          className="bg-white rounded-lg shadow-xl max-w-7xl w-full max-h-[95vh] flex flex-col" 
+          className="print-modal-dialog bg-white rounded-lg shadow-xl max-w-7xl w-full max-h-[95vh] flex flex-col" 
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="sticky top-0 bg-white border-b border-border px-6 py-4 flex items-center justify-between rounded-t-lg z-10">
+          <div className="no-print sticky top-0 bg-white border-b border-border px-6 py-4 flex items-center justify-between rounded-t-lg z-10">
             <h2 className="text-xl font-bold text-primary">🖨️ {title}</h2>
             <div className="flex gap-3">
               <button
@@ -98,7 +101,7 @@ const PrintModal: React.FC<PrintModalProps> = ({
             </div>
           </div>
 
-          <div className="flex flex-1 overflow-hidden">
+          <div className="print-modal-content flex flex-1 overflow-hidden">
             <SettingsPanel
               filename={filename}
               total={total}
@@ -117,12 +120,13 @@ const PrintModal: React.FC<PrintModalProps> = ({
                 <PrintPreview
                   boxes={boxes}
                   fields={finalFields}
-                  visibleFields={visibleFields}
+                  visibleFields={visibleFields.length > 0 ? visibleFields : finalFields}
                   cols={cols}
                   size={size}
                   boxField="numero_boite"
                   labelsPerPage={labelsPerPage}
                   metaFields={metaFields}
+                  selectedYears={selectedYears}
                 />
               ) : (
                 <div className="text-center py-12 text-muted font-mono">

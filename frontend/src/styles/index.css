@@ -59,6 +59,22 @@ body {
   grid-template-rows: 1fr;
 }
 
+/* Cellule de la grille — conteneur direct de LabelCard */
+.label-grid-cell {
+  height: 100%;
+  max-height: 100%;
+  min-height: 0;
+  display: flex;
+  align-items: stretch;
+  overflow: hidden;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.label-grid-cell-empty {
+  visibility: hidden;
+}
+
 /* ─── Étiquette STYLISÉE ─────────────────────────────── */
 .label-card {
   border: 1px solid #c8c5bf;
@@ -159,85 +175,177 @@ body {
 
 /* ─── Impression ──────────────────────────────────────── */
 @media print {
+  /* La modale d'agence devient un simple document imprimable */
+  .print-modal,
+  .print-modal > div,
+  .print-modal-dialog,
+  .print-modal-content {
+    position: static !important;
+    display: block !important;
+    width: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: white !important;
+    box-shadow: none !important;
+  }
+
   .no-print {
     display: none !important;
   }
 
+  html,
   body {
     background: white !important;
     margin: 0 !important;
     padding: 0 !important;
+    width: 100% !important;
+    height: auto !important;
   }
 
   .print-container {
     padding: 0 !important;
+    margin: 0 !important;
     background: white !important;
+    overflow: visible !important;
   }
 
+  /* ✅ Feuille A4 paysage : dimensions STRICTES */
   .a4-sheet {
     box-shadow: none !important;
-    width: 100% !important;
-    height: 100vh !important;
+    width: 297mm !important;
+    min-width: 297mm !important;
+    max-width: 297mm !important;
+    height: 210mm !important;
+    min-height: 210mm !important;
+    max-height: 210mm !important;
     margin: 0 !important;
     padding: 5mm 6mm !important;
     overflow: hidden !important;
     border-radius: 0 !important;
+    box-sizing: border-box !important;
+    position: relative !important;
+    display: block !important;
+    /* ✅ Force un contexte de rendu isolé → évite le bug de la 1ère page */
+    transform: translateZ(0) !important;
+    backface-visibility: hidden !important;
+  }
+
+  /* ✅ Saut de page uniquement entre les feuilles (pas après la dernière) */
+  .a4-sheet:not(:last-child) {
+    break-after: page !important;
+    page-break-after: always !important;
   }
 
   .a4-sheet:last-child {
-    page-break-after: avoid;
+    break-after: auto !important;
+    page-break-after: auto !important;
+    page-break-after: avoid !important;
   }
 
+  /* ✅ Grille : hauteur EXPLICITE en mm = 210mm - 10mm padding
+     Ne dépend plus de height:100% du parent → fiable sur la 1ère page */
   .label-grid {
     gap: 2mm !important;
+    width: 100% !important;
+    height: 200mm !important;
+    max-height: 200mm !important;
+    display: grid !important;
+    box-sizing: border-box !important;
+    overflow: hidden !important;
   }
 
-  /* 2 étiquettes par page en impression */
   .label-grid-2 {
     grid-template-columns: repeat(2, 1fr) !important;
     grid-template-rows: 1fr !important;
   }
 
-  /* 3 étiquettes par page en impression */
   .label-grid-3 {
     grid-template-columns: repeat(3, 1fr) !important;
     grid-template-rows: 1fr !important;
   }
 
+  /* ✅ Cellule de grille : contrainte stricte */
+  .label-grid-cell {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+    height: 100% !important;
+    max-height: 100% !important;
+    min-height: 0 !important;
+    display: flex !important;
+    align-items: stretch !important;
+    overflow: hidden !important;
+    box-sizing: border-box !important;
+  }
+
+  .label-grid-cell-empty {
+    visibility: hidden !important;
+  }
+
+  /* ✅ Carte : remplit sa cellule, QR poussé en bas mais VISIBLE */
   .label-card {
     border: 1px solid #999 !important;
     padding: 2mm !important;
     box-shadow: none !important;
     border-radius: 2px !important;
+    min-height: 0 !important;
+    height: 100% !important;
+    max-height: 100% !important;
+    width: 100% !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: space-between !important;
+    overflow: hidden !important;
+    box-sizing: border-box !important;
+  }
+
+  .label-card .content {
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+    justify-content: center !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+  }
+
+  /* ✅ QR code : ne rétrécit JAMAIS, toujours visible */
+  .label-card .qr-wrapper {
+    flex: 0 0 auto !important;
+    display: flex !important;
+    justify-content: flex-end !important;
+    margin-top: 1mm !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    overflow: visible !important;
   }
 
   .label-card::before {
     width: 2px !important;
   }
 
-  .label-card .field-label {
-    font-size: 6pt !important;
-  }
-  
-  .label-card .field-value {
-    font-size: 8pt !important;
-  }
+  .label-card .field-label { font-size: 6pt !important; }
+  .label-card .field-value { font-size: 8pt !important; }
+  .label-card .box-number  { font-size: 7pt !important; }
+  .label-card .agence-name { font-size: 14pt !important; }
 
-  .label-card .box-number {
-    font-size: 7pt !important;
-  }
-
-  .label-card .agence-name {
-    font-size: 14pt !important;
-  }
-
-  .label-card .qr-wrapper svg {
+  .label-card .qr-wrapper svg,
+  .label-card .qr-wrapper canvas,
+  .label-card .qr-wrapper img {
     width: 40px !important;
     height: 40px !important;
+    max-width: 40px !important;
+    max-height: 40px !important;
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
   }
 
+  /* ✅ Format A4 paysage en mm explicites */
   @page {
-    size: A4 landscape;
+    size: 297mm 210mm;
     margin: 0;
   }
 }
@@ -268,39 +376,5 @@ body {
   .label-card {
     min-height: 160px;
     padding: 10px 12px;
-  }
-}
-
-
-/* ─── Grille dynamique pour 2 ou 3 étiquettes ────────── */
-.label-grid {
-  display: grid;
-  gap: 3mm;
-  width: 100%;
-  height: 100%;
-  min-height: unset;
-}
-
-/* 2 étiquettes par page : 2 colonnes, 1 ligne */
-.label-grid-2 {
-  grid-template-columns: repeat(2, 1fr);
-  grid-template-rows: 1fr;
-}
-
-/* 3 étiquettes par page : 3 colonnes, 1 ligne */
-.label-grid-3 {
-  grid-template-columns: repeat(3, 1fr);
-  grid-template-rows: 1fr;
-}
-
-@media print {
-  .label-grid-2 {
-    grid-template-columns: repeat(2, 1fr) !important;
-    grid-template-rows: 1fr !important;
-  }
-
-  .label-grid-3 {
-    grid-template-columns: repeat(3, 1fr) !important;
-    grid-template-rows: 1fr !important;
   }
 }

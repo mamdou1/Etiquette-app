@@ -68,6 +68,7 @@ const LabelCard: React.FC<Props> = ({
       "DGEI",
       "dgei",
       "agence_nom_agence",
+      "Non Agence",
       "libelle_agence"
     ];
     
@@ -115,20 +116,21 @@ const LabelCard: React.FC<Props> = ({
     const result: string[] = [];
 
     if (metaFields.length > 0) {
-      for (const mf of metaFields) {
-        const isVisible =
-          visibleFields.includes(mf.name) || visibleFields.includes(mf.label);
-        if (!isVisible) continue;
-
-        const value = getFieldValue(mf.name) || getFieldValue(mf.label);
+      // Respecter exactement l'ordre et les champs cochés du panneau,
+      // y compris le numéro de boîte qui n'est pas toujours un MetaField.
+      for (const fieldName of visibleFields) {
+        const mf = metaFields.find(field => field.name === fieldName || field.label === fieldName);
+        const name = mf?.name || fieldName;
+        const label = mf?.label || fieldName;
+        const value = getFieldValue(name) || getFieldValue(label);
         
         const isAgence = value === agenceValue && agenceValue !== "" && 
-          (mf.name.toLowerCase().includes("agence") || 
-           mf.label.toLowerCase().includes("agence") ||
-           mf.name.toLowerCase().includes("dgei") ||
-           mf.label.toLowerCase().includes("dgei") ||
-           mf.name.toLowerCase().includes("nom") ||
-           mf.label.toLowerCase().includes("nom"));
+          (name.toLowerCase().includes("agence") || 
+           label.toLowerCase().includes("agence") ||
+           name.toLowerCase().includes("dgei") ||
+           label.toLowerCase().includes("dgei") ||
+           name.toLowerCase().includes("nom") ||
+           label.toLowerCase().includes("nom"));
         
         if (value && !isAgence) {
           result.push(value);

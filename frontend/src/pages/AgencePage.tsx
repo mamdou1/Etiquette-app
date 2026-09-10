@@ -3,7 +3,7 @@ import AgenceManager from '../components/AgenceManager';
 import HierarchyTree from '../components/HierarchyTree';
 import PrintModal from '../components/PrintModal';
 import AddBoiteModal from '../components/AddBoiteModal';
-import { Agence, getAllAgences, getAgenceHierarchy, HierarchyData } from '../services/agenceService';
+import { Agence, getAllAgences, getAgenceHierarchy, getBoitesByAgence, HierarchyData } from '../services/agenceService';
 import { getMetaFieldsByType, MetaField } from '../services/metaFieldService';
 import { useSettings } from '../contexts/SettingsContext';
 
@@ -45,12 +45,12 @@ const AgencePage: React.FC = () => {
 
   const [printModal, setPrintModal] = useState<{
     isOpen: boolean;
-    boxes: Array<{ boxNumber: string; records: any[] }>;
+    boxes: Array<{ boxNumber: string; records: any[]; year?: string }>;
     title: string;
     level: 'agence' | 'type' | 'annee' | 'boite';
     visibleFields: string[];
     fields: string[];
-    metaFields: MetaField[];
+    metaFields: Array<{ id: number; name: string; label: string; field_type: string }>;
   }>({
     isOpen: false,
     boxes: [],
@@ -74,6 +74,7 @@ const AgencePage: React.FC = () => {
   const [metaFields, setMetaFields] = useState<MetaField[]>([]);
   const [loadingMetaFields, setLoadingMetaFields] = useState(false);
   const [currentTypeId, setCurrentTypeId] = useState<number | null>(null);
+  const [selectedPrintYears, setSelectedPrintYears] = useState<string[]>([]);
 
   const loadAgences = async () => {
     try {
@@ -175,23 +176,81 @@ const AgencePage: React.FC = () => {
     return boites.slice(start, start + itemsPerPage);
   };
 
-  const handlePrintBoxes = (boxes: Array<{ boxNumber: string; records: any[] }>, title: string, level: 'agence' | 'type' | 'annee' | 'boite') => {
-    // ✅ Utiliser les noms des metaFields comme champs
-    const metaFieldNames = metaFields.map(mf => mf.name);
-    
-    // ✅ Utiliser les champs visibles actuels (ou tous si vide)
-    const currentVisibleFields = visibleFields.length > 0 
-      ? visibleFields 
-      : metaFieldNames;
+  const handlePrintBoxes = async (boxes: Array<{ boxNumber: string; records: any[]; year?: string }>, title: string, level: 'agence' | 'type' | 'annee' | 'boite') => {
+    if (!selectedAgenceId) return;
+
+    try {
+      // La hiérarchie ne sert qu'à naviguer. Pour l'impression, relire les
+      // colonnes Excel réellement enregistrées dans meta_field_values.
+      const response = await getBoitesByAgence(selectedAgenceId);
+      const selectedKeys = new Set(boxes.map(box => `${box.boxNumber}|${box.year || ''}`));
+      const recordsByBox = new Map<string, any>();
+
+      (response.data || []).forEach((row: any) => {
+        const key = `${row.numero_boite}|${row.annee || ''}`;
+        if (!selectedKeys.has(key)) return;
+
+        if (!recordsByBox.has(key)) {
+          recordsByBox.set(key, {
+            numero_boite: row.numero_boite,
+            agence_nom: row.agence_nom || hierarchy?.agence.nom || '',
+            type_document: row.type_nom || '',
+            annee: row.annee || '',
+            metaValues: {},
+            __metaFields: [],
+          });
+        }
+
+        const record = recordsByBox.get(key);
+        record[row.name] = row.value ?? '';
+        record.metaValues[row.name] = row.value ?? '';
+        record.__metaFields.push({
+          id: row.meta_field_id || row.id || 0,
+          name: row.name,
+          label: row.label || row.name,
+          field_type: row.field_type || 'text',
+        });
+      });
+
+      const storedBoxes = Array.from(recordsByBox.values()).map((record: any) => ({
+        boxNumber: record.numero_boite,
+        records: [record],
+        year: record.annee,
+      }));
+
+      if (storedBoxes.length === 0) {
+        setToast({ message: 'Aucune valeur enregistrée n’a été trouvée pour cette sélection', type: 'error' });
+        return;
+      }
+
+      boxes = storedBoxes;
+    } catch (error) {
+      setToast({ message: 'Impossible de charger les données enregistrées pour l’impression', type: 'error' });
+      return;
+    }
+
+    // Chaque sélection peut contenir un type différent. Les champs doivent
+    // donc être tirés des boîtes sélectionnées, et non du premier type chargé.
+    const storedFields = [...new Set(boxes.flatMap(box =>
+      box.records.flatMap(record => Object.keys(record).filter(key =>
+        !['metaValues', '__metaFields', 'numero_boite', 'agence_nom', 'type_document', 'caissiers', 'annee'].includes(key)
+      ))
+    ))];
+    const fieldsToUse = ['numero_boite', ...storedFields];
+    const years = [...new Set(boxes.map(box => box.year).filter(Boolean))] as string[];
+    setSelectedPrintYears(years);
     
     setPrintModal({
       isOpen: true,
       boxes,
       title,
       level,
-      visibleFields: currentVisibleFields,
-      fields: metaFieldNames,
-      metaFields: metaFields,
+      visibleFields: visibleFields.filter(field => fieldsToUse.includes(field)),
+      fields: fieldsToUse,
+      metaFields: fieldsToUse.map(name =>
+        boxes.flatMap(box => box.records.flatMap(record => record.__metaFields || []))
+          .find(field => field.name === name) || { id: 0, name, label: name, field_type: 'text' }
+      ),
     });
   };
 
@@ -211,6 +270,13 @@ const AgencePage: React.FC = () => {
 
   const handleReset = () => {
     setPrintModal({ isOpen: false, boxes: [], title: '', level: 'agence', visibleFields: [], fields: [], metaFields: [] });
+    setSelectedPrintYears([]);
+  };
+
+  const togglePrintYear = (year: string) => {
+    setSelectedPrintYears(previous =>
+      previous.includes(year) ? previous.filter(value => value !== year) : [...previous, year]
+    );
   };
 
   const handleAddBoiteSuccess = () => {
@@ -307,6 +373,9 @@ const AgencePage: React.FC = () => {
         filename={`Agence_${hierarchy?.agence?.nom || 'inconnue'}`}
         total={printModal.boxes.length}
         sourceTotal={printModal.boxes.length}
+        availableYears={[...new Set(printModal.boxes.map(box => box.year).filter(Boolean))] as string[]}
+        selectedYears={selectedPrintYears}
+        onToggleYear={togglePrintYear}
         onPrint={handlePrint}
         onReset={handleReset}
         visibleFields={printModal.visibleFields}

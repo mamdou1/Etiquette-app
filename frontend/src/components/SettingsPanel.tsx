@@ -122,6 +122,23 @@ const SettingsPanel: React.FC<Props> = ({
     return fieldType === 'date' || isDateField(fieldName);
   };
 
+  // ✅ CORRIGÉ
+  const toggleAllYears = () => {
+    if (selectedYears.length === availableYears.length) {
+      // Désélectionner toutes
+      const yearsToRemove = [...selectedYears];
+      yearsToRemove.forEach(year => {
+        onToggleYear(year);
+      });
+    } else {
+      // Sélectionner toutes
+      const yearsToAdd = availableYears.filter(year => !selectedYears.includes(year));
+      yearsToAdd.forEach(year => {
+        onToggleYear(year);
+      });
+    }
+  };
+
   return (
     <aside className="no-print w-80 min-w-[320px] bg-white border-r border-border flex flex-col gap-4 p-6 overflow-y-auto h-screen sticky top-0">
       <div>
@@ -142,21 +159,22 @@ const SettingsPanel: React.FC<Props> = ({
         </button>
       </div>
 
-      {availableYears.length > 1 && (
+      {availableYears.length > 0 && (
         <div>
           <div className="flex items-center justify-between gap-2 mb-3">
             <p className="font-mono text-[10px] uppercase tracking-widest text-muted">
               02 - Années à imprimer
             </p>
-            {selectedYears.length > 0 && (
-              <button onClick={() => selectedYears.forEach(onToggleYear)} className="font-mono text-[10px] text-accent hover:underline">
-                Toutes
-              </button>
-            )}
+            <button 
+              onClick={toggleAllYears}
+              className="font-mono text-[10px] text-accent hover:underline"
+            >
+              {selectedYears.length === availableYears.length ? 'Désélectionner tout' : 'Tout sélectionner'}
+            </button>
           </div>
           <div className="flex flex-wrap gap-2">
             {availableYears.map((year) => {
-              const selected = selectedYears.length === 0 || selectedYears.includes(year);
+              const selected = selectedYears.includes(year);
               return (
                 <button
                   key={year}
@@ -172,12 +190,15 @@ const SettingsPanel: React.FC<Props> = ({
           </div>
           <p className="mt-2 font-mono text-[10px] text-muted">
             {selectedYears.length === 0
-              ? "Toutes les années sont sélectionnées"
-              : `${selectedYears.length} année${selectedYears.length > 1 ? "s" : ""} sélectionnée${selectedYears.length > 1 ? "s" : ""}`}
+              ? "Aucune année sélectionnée"
+              : selectedYears.length === availableYears.length
+                ? `Toutes les ${selectedYears.length} années sont sélectionnées`
+                : `${selectedYears.length} année${selectedYears.length > 1 ? "s" : ""} sélectionnée${selectedYears.length > 1 ? "s" : ""}`}
           </p>
         </div>
       )}
 
+      {/* ... reste du code inchangé ... */}
       <div>
         <div className="flex items-center justify-between gap-2 mb-3">
           <p className="font-mono text-[10px] uppercase tracking-widest text-muted">
@@ -309,7 +330,6 @@ const SettingsPanel: React.FC<Props> = ({
         )}
       </div>
 
-      {/* ✅ NOUVEAU - Nombre d'étiquettes par page */}
       <div>
         <p className="font-mono text-[10px] uppercase tracking-widest text-muted mb-3">
           05 - Étiquettes par page
@@ -330,24 +350,6 @@ const SettingsPanel: React.FC<Props> = ({
           {labelsPerPage === 2 ? "2 colonnes × 1 ligne" : "3 colonnes × 1 ligne"}
         </p>
       </div>
-
-      {/* <div>
-        <p className="font-mono text-[10px] uppercase tracking-widest text-muted mb-3">
-          06 - Colonnes
-        </p>
-        <div className="flex gap-2">
-          {([2, 3, 4] as ColumnCount[]).map((n) => (
-            <button
-              key={n}
-              onClick={() => setCols(n)}
-              className={`flex-1 py-2 border font-mono text-sm font-medium transition-colors
-                ${cols === n ? "bg-accent border-accent text-white" : "bg-white border-border hover:border-muted"}`}
-            >
-              {n} col.
-            </button>
-          ))}
-        </div>
-      </div> */}
 
       <div>
         <p className="font-mono text-[10px] uppercase tracking-widest text-muted mb-3">
@@ -399,7 +401,6 @@ const SettingsPanel: React.FC<Props> = ({
           />
         </div>
 
-        {/* ✅ Réglage spécifique pour l'agence */}
         <div className="mb-3">
           <div className="flex justify-between font-mono text-xs text-muted">
             <label>Agence</label>

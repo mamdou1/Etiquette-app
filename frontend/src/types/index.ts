@@ -7,6 +7,7 @@ export interface LabelRecord {
 export interface BoxGroup {
   boxNumber: string;
   records: LabelRecord[];
+  year?: string; // ✅ Année de la boîte
 }
 
 export interface UploadBoxResponse {
@@ -27,6 +28,10 @@ export interface UploadResponse {
   nouvellesAgences?: string[];
   originalCount?: number;
   enrichedCount?: number;
+  availableYears?: string[]; // ✅ AJOUT
+  yearData?: { [year: string]: LabelRecord[] }; // ✅ AJOUT
+  sheets?: string[]; // ✅ AJOUT
+  totalRows?: number; // ✅ AJOUT
 }
 
 export type ColumnCount = 2 | 3 | 4;
