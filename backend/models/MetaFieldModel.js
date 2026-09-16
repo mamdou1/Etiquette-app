@@ -51,8 +51,26 @@ const MetaFieldModel = {
     }
 
     const [result] = await pool.execute(
-      `INSERT INTO meta_fields (type_document_id, name, label, field_type, required, visible, options, position, placeholder, description, default_value)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO meta_fields (
+      type_document_id,
+      name,
+      label,
+      field_type,
+      required,
+      visible,
+      options,
+      position,
+      placeholder,
+      description,
+      default_value,
+      created_at,
+      updated_at
+   )
+   VALUES (
+      ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+      NOW(),
+      NOW()
+   )`,
       [
         type_document_id,
         name.trim(),

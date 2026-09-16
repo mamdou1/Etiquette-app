@@ -175,6 +175,29 @@ body {
 
 /* ─── Impression ──────────────────────────────────────── */
 @media print {
+  /* Seules les feuilles et leurs conteneurs participent à la pagination. */
+  body:has(.print-container) #root *:not(.print-container):not(.print-container *):not(:has(.print-container)) {
+    display: none !important;
+  }
+
+  #root:has(.print-container),
+  #root *:has(.print-container) {
+    position: static !important;
+    display: block !important;
+    width: auto !important;
+    height: auto !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
+    max-width: none !important;
+    max-height: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    overflow: visible !important;
+    background: white !important;
+    box-shadow: none !important;
+  }
+
   /* La modale d'agence devient un simple document imprimable */
   .print-modal,
   .print-modal > div,
@@ -218,9 +241,10 @@ body {
     width: 297mm !important;
     min-width: 297mm !important;
     max-width: 297mm !important;
-    height: 210mm !important;
-    min-height: 210mm !important;
-    max-height: 210mm !important;
+    /* Petite réserve pour les arrondis du moteur d'impression. */
+    height: 209.5mm !important;
+    min-height: 209.5mm !important;
+    max-height: 209.5mm !important;
     margin: 0 !important;
     padding: 5mm 6mm !important;
     overflow: hidden !important;
@@ -228,9 +252,8 @@ body {
     box-sizing: border-box !important;
     position: relative !important;
     display: block !important;
-    /* ✅ Force un contexte de rendu isolé → évite le bug de la 1ère page */
-    transform: translateZ(0) !important;
-    backface-visibility: hidden !important;
+    break-inside: avoid !important;
+    transform: none !important;
   }
 
   /* ✅ Saut de page uniquement entre les feuilles (pas après la dernière) */
@@ -242,28 +265,27 @@ body {
   .a4-sheet:last-child {
     break-after: auto !important;
     page-break-after: auto !important;
-    page-break-after: avoid !important;
   }
 
-  /* ✅ Grille : hauteur EXPLICITE en mm = 210mm - 10mm padding
+  /* Grille : hauteur explicite = 209.5mm - 10mm de padding.
      Ne dépend plus de height:100% du parent → fiable sur la 1ère page */
   .label-grid {
     gap: 2mm !important;
     width: 100% !important;
-    height: 200mm !important;
-    max-height: 200mm !important;
+    height: 199.5mm !important;
+    max-height: 199.5mm !important;
     display: grid !important;
     box-sizing: border-box !important;
     overflow: hidden !important;
   }
 
   .label-grid-2 {
-    grid-template-columns: repeat(2, 1fr) !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
     grid-template-rows: 1fr !important;
   }
 
   .label-grid-3 {
-    grid-template-columns: repeat(3, 1fr) !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
     grid-template-rows: 1fr !important;
   }
 
@@ -286,6 +308,7 @@ body {
 
   /* ✅ Carte : remplit sa cellule, QR poussé en bas mais VISIBLE */
   .label-card {
+    transform: none !important;
     border: 1px solid #999 !important;
     padding: 2mm !important;
     box-shadow: none !important;
@@ -301,7 +324,7 @@ body {
     box-sizing: border-box !important;
   }
 
-  .label-card .content {
+  .label-card .print-label-content {
     flex: 1 1 auto !important;
     min-height: 0 !important;
     overflow: hidden !important;
@@ -312,10 +335,10 @@ body {
   }
 
   /* ✅ QR code : ne rétrécit JAMAIS, toujours visible */
-  .label-card .qr-wrapper {
+  .label-card .print-label-qr {
     flex: 0 0 auto !important;
     display: flex !important;
-    justify-content: flex-end !important;
+    justify-content: center !important;
     margin-top: 1mm !important;
     visibility: visible !important;
     opacity: 1 !important;
@@ -351,7 +374,7 @@ body {
 }
 
 /* ─── Responsive ──────────────────────────────────────── */
-@media (max-width: 1200px) {
+@media screen and (max-width: 1200px) {
   .a4-sheet {
     width: 100%;
     height: auto;
@@ -360,7 +383,7 @@ body {
   }
 }
 
-@media (max-width: 768px) {
+@media screen and (max-width: 768px) {
   .a4-sheet {
     padding: 12px;
     aspect-ratio: auto;

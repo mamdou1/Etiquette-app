@@ -16,11 +16,11 @@ const TypeDocumentModel = {
       ORDER BY td.nom ASC
     `;
     const [rows] = await pool.execute(sql, [active ? 1 : 0]);
-    
-    return rows.map(row => ({
+
+    return rows.map((row) => ({
       ...row,
-      agence_ids: row.agence_ids ? row.agence_ids.split(',').map(Number) : [],
-      agence_noms: row.agence_noms ? row.agence_noms.split(',') : [],
+      agence_ids: row.agence_ids ? row.agence_ids.split(",").map(Number) : [],
+      agence_noms: row.agence_noms ? row.agence_noms.split(",") : [],
     }));
   },
 
@@ -51,21 +51,23 @@ const TypeDocumentModel = {
       GROUP BY td.id
     `;
     const [rows] = await pool.execute(sql, [id]);
-    
+
     if (!rows.length) return null;
-    
+
     return {
       ...rows[0],
-      agence_ids: rows[0].agence_ids ? rows[0].agence_ids.split(',').map(Number) : [],
-      agence_noms: rows[0].agence_noms ? rows[0].agence_noms.split(',') : [],
+      agence_ids: rows[0].agence_ids
+        ? rows[0].agence_ids.split(",").map(Number)
+        : [],
+      agence_noms: rows[0].agence_noms ? rows[0].agence_noms.split(",") : [],
     };
   },
 
   // ─── Vérifier si un type existe par nom ──────────────────────
   findByNom: async (nom) => {
     const [rows] = await pool.execute(
-      'SELECT * FROM type_documents WHERE nom = ?',
-      [nom]
+      "SELECT * FROM type_documents WHERE nom = ?",
+      [nom],
     );
     return rows[0] || null;
   },
@@ -75,11 +77,16 @@ const TypeDocumentModel = {
     const { nom, code, description, active = true } = data;
 
     const [result] = await pool.execute(
-      `INSERT INTO type_documents (nom, code, description, active, created_at) 
-       VALUES (?, ?, ?, ?, NOW())`,
-      [nom.trim(), code || nom.trim().toUpperCase(), description || null, active ? 1 : 0]
+      `INSERT INTO type_documents
+   (nom, code, description, active, created_at, updated_at)
+   VALUES (?, ?, ?, ?, NOW(), NOW())`,
+      [
+        nom.trim(),
+        code || nom.trim().toUpperCase(),
+        description || null,
+        active ? 1 : 0,
+      ],
     );
-
     return TypeDocumentModel.findById(result.insertId);
   },
 
@@ -87,15 +94,15 @@ const TypeDocumentModel = {
   assignToAgences: async (typeId, agenceIds) => {
     // 1. Supprimer les anciennes relations
     await pool.execute(
-      'DELETE FROM agence_type_documents WHERE type_document_id = ?',
-      [typeId]
+      "DELETE FROM agence_type_documents WHERE type_document_id = ?",
+      [typeId],
     );
 
     // 2. Ajouter les nouvelles relations
     if (agenceIds && agenceIds.length > 0) {
-      const values = agenceIds.map(id => `(${id}, ${typeId})`).join(', ');
+      const values = agenceIds.map((id) => `(${id}, ${typeId})`).join(", ");
       await pool.execute(
-        `INSERT INTO agence_type_documents (agence_id, type_document_id) VALUES ${values}`
+        `INSERT INTO agence_type_documents (agence_id, type_document_id) VALUES ${values}`,
       );
     }
 
@@ -109,17 +116,29 @@ const TypeDocumentModel = {
     const fields = [];
     const values = [];
 
-    if (nom !== undefined) { fields.push('nom = ?'); values.push(nom.trim()); }
-    if (code !== undefined) { fields.push('code = ?'); values.push(code.trim()); }
-    if (description !== undefined) { fields.push('description = ?'); values.push(description || null); }
-    if (active !== undefined) { fields.push('active = ?'); values.push(active ? 1 : 0); }
+    if (nom !== undefined) {
+      fields.push("nom = ?");
+      values.push(nom.trim());
+    }
+    if (code !== undefined) {
+      fields.push("code = ?");
+      values.push(code.trim());
+    }
+    if (description !== undefined) {
+      fields.push("description = ?");
+      values.push(description || null);
+    }
+    if (active !== undefined) {
+      fields.push("active = ?");
+      values.push(active ? 1 : 0);
+    }
 
     if (fields.length === 0) return null;
 
     values.push(id);
     await pool.execute(
-      `UPDATE type_documents SET ${fields.join(', ')} WHERE id = ?`,
-      values
+      `UPDATE type_documents SET ${fields.join(", ")} WHERE id = ?`,
+      values,
     );
 
     return TypeDocumentModel.findById(id);
@@ -128,15 +147,18 @@ const TypeDocumentModel = {
   // ─── Désactiver un type ──────────────────────────────────────
   softDelete: async (id) => {
     const [result] = await pool.execute(
-      'UPDATE type_documents SET active = 0 WHERE id = ?',
-      [id]
+      "UPDATE type_documents SET active = 0 WHERE id = ?",
+      [id],
     );
     return result.affectedRows > 0;
   },
 
   // ─── Supprimer définitivement ────────────────────────────────
   deletePermanent: async (id) => {
-    const [result] = await pool.execute('DELETE FROM type_documents WHERE id = ?', [id]);
+    const [result] = await pool.execute(
+      "DELETE FROM type_documents WHERE id = ?",
+      [id],
+    );
     return result.affectedRows > 0;
   },
 };

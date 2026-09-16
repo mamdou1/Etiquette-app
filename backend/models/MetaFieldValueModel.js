@@ -22,8 +22,8 @@ const MetaFieldValueModel = {
     } else {
       const [result] = await pool.execute(
         `INSERT INTO meta_field_values 
-         (agence_id, type_document_id, meta_field_id, numero_boite, annee, value)
-         VALUES (?, ?, ?, ?, ?, ?)`,
+         (agence_id, type_document_id, meta_field_id, numero_boite, annee, value, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())`,
         [agence_id, type_document_id, meta_field_id, numero_boite, annee, value]
       );
       const [rows] = await pool.execute(

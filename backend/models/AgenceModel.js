@@ -5,14 +5,16 @@ const AgenceModel = {
   findByNom: async (nom) => {
     const [rows] = await pool.execute(
       "SELECT * FROM agences WHERE nom = ? AND active = TRUE",
-      [String(nom).substring(0, 100)]
+      [String(nom).substring(0, 100)],
     );
     return rows.length ? rows[0] : null;
   },
 
   // ─── Trouver une agence par ID ─────────────────────────────
   findById: async (id) => {
-    const [rows] = await pool.execute("SELECT * FROM agences WHERE id = ?", [id]);
+    const [rows] = await pool.execute("SELECT * FROM agences WHERE id = ?", [
+      id,
+    ]);
     return rows.length ? rows[0] : null;
   },
 
@@ -40,11 +42,15 @@ const AgenceModel = {
     if (existing) return existing;
 
     const [result] = await pool.execute(
-      "INSERT INTO agences (nom, code, active) VALUES (?, ?, TRUE)",
-      [nomTronque, codeTronque]
+      `INSERT INTO agences
+   (nom, code, active, created_at, updated_at)
+   VALUES (?, ?, TRUE, NOW(), NOW())`,
+      [nomTronque, codeTronque],
     );
 
-    const [rows] = await pool.execute("SELECT * FROM agences WHERE id = ?", [result.insertId]);
+    const [rows] = await pool.execute("SELECT * FROM agences WHERE id = ?", [
+      result.insertId,
+    ]);
     return rows[0];
   },
 
@@ -71,7 +77,7 @@ const AgenceModel = {
     values.push(id);
     const [result] = await pool.execute(
       `UPDATE agences SET ${fields.join(", ")} WHERE id = ?`,
-      values
+      values,
     );
     return result.affectedRows > 0;
   },
@@ -80,14 +86,16 @@ const AgenceModel = {
   softDelete: async (id) => {
     const [result] = await pool.execute(
       "UPDATE agences SET active = FALSE WHERE id = ? AND active = TRUE",
-      [id]
+      [id],
     );
     return result.affectedRows > 0;
   },
 
   // ─── Supprimer définitivement une agence ────────────────────
   deletePermanent: async (id) => {
-    const [result] = await pool.execute("DELETE FROM agences WHERE id = ?", [id]);
+    const [result] = await pool.execute("DELETE FROM agences WHERE id = ?", [
+      id,
+    ]);
     return result.affectedRows > 0;
   },
 
@@ -117,7 +125,7 @@ const AgenceModel = {
          INNER JOIN agence_type_documents atd ON td.id = atd.type_document_id
          WHERE atd.agence_id = ? AND td.active = TRUE
          ORDER BY td.nom ASC`,
-        [id]
+        [id],
       ),
       pool.execute(
         `SELECT mfv.type_document_id, mfv.annee, mfv.numero_boite, mfv.value,
@@ -126,14 +134,14 @@ const AgenceModel = {
          JOIN meta_fields mf ON mf.id = mfv.meta_field_id
          WHERE mfv.agence_id = ?
          ORDER BY mfv.type_document_id, mfv.annee DESC, mfv.numero_boite ASC, mf.position ASC`,
-        [id]
+        [id],
       ),
     ]);
 
     const grouped = new Map();
     values.forEach((row) => {
       const typeKey = String(row.type_document_id);
-      const yearKey = String(row.annee || 'Sans année');
+      const yearKey = String(row.annee || "Sans année");
       const boxKey = String(row.numero_boite);
       if (!grouped.has(typeKey)) grouped.set(typeKey, new Map());
       const years = grouped.get(typeKey);
@@ -152,9 +160,16 @@ const AgenceModel = {
 
       const box = boxes.get(boxKey);
       box.total_documents += 1;
-      box.metaValues[row.name] = { label: row.label, field_type: row.field_type, value: row.value };
-      if (row.name.toLowerCase() === 'caissiers' && row.value) {
-        box.caissiers = String(row.value).split(',').map(value => value.trim()).filter(Boolean);
+      box.metaValues[row.name] = {
+        label: row.label,
+        field_type: row.field_type,
+        value: row.value,
+      };
+      if (row.name.toLowerCase() === "caissiers" && row.value) {
+        box.caissiers = String(row.value)
+          .split(",")
+          .map((value) => value.trim())
+          .filter(Boolean);
       }
     });
 
@@ -166,14 +181,20 @@ const AgenceModel = {
           annee,
           boites,
           total_boites: boites.length,
-          total_documents: boites.reduce((sum, box) => sum + box.total_documents, 0),
+          total_documents: boites.reduce(
+            (sum, box) => sum + box.total_documents,
+            0,
+          ),
         };
       });
       return {
         ...type,
         annees,
         total_boites: annees.reduce((sum, year) => sum + year.total_boites, 0),
-        total_documents: annees.reduce((sum, year) => sum + year.total_documents, 0),
+        total_documents: annees.reduce(
+          (sum, year) => sum + year.total_documents,
+          0,
+        ),
       };
     });
 
@@ -181,7 +202,10 @@ const AgenceModel = {
       agence,
       types: typesWithData,
       total_boites: typesWithData.reduce((sum, t) => sum + t.total_boites, 0),
-      total_documents: typesWithData.reduce((sum, t) => sum + t.total_documents, 0),
+      total_documents: typesWithData.reduce(
+        (sum, t) => sum + t.total_documents,
+        0,
+      ),
     };
   },
 };

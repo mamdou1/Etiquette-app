@@ -240,7 +240,7 @@ const LabelCard: React.FC<Props> = ({
       ) : (
         <>
           {/* Valeurs centrales avec espaces - Utilise valueSize */}
-          <div className="flex-1 space-y-4 py-3 text-center">
+          <div className="print-label-content flex-1 space-y-4 py-3 text-center">
             {displayValues.map((value, index) => {
               // Vérifier si la valeur est le numéro de boîte
               const isBoxNumber = value === boxNumber;
@@ -267,7 +267,7 @@ const LabelCard: React.FC<Props> = ({
           </div>
 
           {/* QR Code en bas avec plus d'espace */}
-          <div className="mt-4 flex justify-center">
+          <div className="print-label-qr mt-4 flex justify-center">
             <div className="bg-white p-3 rounded shadow-sm border-border/30">
               <QRCodeSVG
                 value={qrData}
