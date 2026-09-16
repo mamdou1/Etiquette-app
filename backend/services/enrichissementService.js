@@ -34,6 +34,15 @@ const FIELD_ALIASES = {
     "observation", "observations", "remarque", "note", "obs",
     "commentaire", "commentaires", "info", "information"
   ],
+  // ✅ NOUVEAU - Pour l'archivage physique
+  rayon: [
+    "rayon", "rayons", "ray", "section", "allee", "allée",
+    "emplacement", "salle"
+  ],
+  travers: [
+    "travers", "traver", "trv", "niveau", "tablette", "traversin",
+    "colonne", "rangee", "rangée", "rang"
+  ],
 };
 
 // ─── FONCTIONS DE NORMALISATION ────────────────────────────────
@@ -313,6 +322,16 @@ function detectObservationColumn(headers) {
   return detectColumn(headers, FIELD_ALIASES.observation);
 }
 
+// ✅ NOUVEAU - Détection du rayon
+function detectRayonColumn(headers) {
+  return detectColumn(headers, FIELD_ALIASES.rayon);
+}
+
+// ✅ NOUVEAU - Détection du travers
+function detectTraversColumn(headers) {
+  return detectColumn(headers, FIELD_ALIASES.travers);
+}
+
 // ─── MATCHING DES MÉTADONNÉES ──────────────────────────────────
 function findMatchingMetaField(columnName, metaFields) {
   const normalizedColumn = normalizeText(columnName);
@@ -437,11 +456,15 @@ const enrichirEtStocker = async (records, agenceId, typeDocumentId) => {
   const anneeColumn = detectAnneeColumn(headers);
   const agenceColumn = detectAgenceColumn(headers);
   const typeColumn = detectTypeColumn(headers);
+  const rayonColumn = detectRayonColumn(headers);      // ✅ NOUVEAU
+  const traversColumn = detectTraversColumn(headers);  // ✅ NOUVEAU
 
   console.log(`🔍 Box: ${boxColumn}`);
   console.log(`🔍 Année: ${anneeColumn}`);
   console.log(`🔍 Agence: ${agenceColumn}`);
   console.log(`🔍 Type: ${typeColumn}`);
+  console.log(`🔍 Rayon: ${rayonColumn}`);     // ✅ NOUVEAU
+  console.log(`🔍 Travers: ${traversColumn}`); // ✅ NOUVEAU
 
   if (!boxColumn) {
     throw new Error('Impossible de détecter la colonne "N° Boîte"');

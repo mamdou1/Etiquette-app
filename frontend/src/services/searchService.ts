@@ -8,6 +8,10 @@ export interface SearchFilters {
   valeur?: string;
   agence_id?: number;
   type_document_id?: number;
+  rayon?: string;        // ✅ NOUVEAU
+  travers?: string;      // ✅ NOUVEAU
+  date_debut?: string;   // ✅ NOUVEAU - Format YYYY-MM-DD
+  date_fin?: string;     // ✅ NOUVEAU - Format YYYY-MM-DD
 }
 
 export interface MetaValue {
@@ -55,18 +59,33 @@ export interface FilterOptions {
   agences: { id: number; nom: string }[];
   types: { id: number; nom: string }[];
   annees: string[];
+  rayons: string[];      // ✅ NOUVEAU
+  travers: string[];     // ✅ NOUVEAU
 }
 
 // ─── GET /api/search ──────────────────────────────────────────
 export const search = async (filters: SearchFilters): Promise<SearchResponse> => {
-  const response = await api.get<SearchResponse>('/search', { params: filters });
+  // ✅ Nettoyer les filtres vides avant envoi
+  const cleanFilters: Record<string, any> = {};
+  
+  Object.entries(filters).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') {
+      cleanFilters[key] = value;
+    }
+  });
+
+  const response = await api.get<SearchResponse>('/search', { params: cleanFilters });
   return response.data;
 };
 
 // ─── GET /api/search/boite ────────────────────────────────────
 export const getBoiteDetail = async (agenceId: number, typeDocumentId: number, numeroBoite: string) => {
   const response = await api.get('/search/boite', {
-    params: { agence_id: agenceId, type_document_id: typeDocumentId, numero_boite: numeroBoite }
+    params: { 
+      agence_id: agenceId, 
+      type_document_id: typeDocumentId, 
+      numero_boite: numeroBoite 
+    }
   });
   return response.data;
 };

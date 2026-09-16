@@ -28,6 +28,28 @@ const PrinterIcon = () => (
   </svg>
 );
 
+// ✅ Helper : extraire Rayon et Travers depuis metaValues
+const extractLocation = (metaValues: Record<string, any>) => {
+  if (!metaValues) return { rayon: '', travers: '' };
+  
+  let rayon = '';
+  let travers = '';
+  
+  Object.entries(metaValues).forEach(([key, val]) => {
+    const keyLower = key.toLowerCase();
+    const value = (val as any)?.value || '';
+    
+    if (keyLower.includes('rayon') && !rayon) {
+      rayon = value;
+    }
+    if (keyLower.includes('travers') && !travers) {
+      travers = value;
+    }
+  });
+  
+  return { rayon, travers };
+};
+
 const RecherchePage: React.FC = () => {
   const { setVisibleFields } = useSettings();
 
@@ -38,6 +60,10 @@ const RecherchePage: React.FC = () => {
     annee: '',
     numero_boite: '',
     valeur: '',
+    rayon: '',
+    travers: '',
+    date_debut: '',
+    date_fin: '',
   });
   const [results, setResults] = useState<AgenceResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -46,6 +72,8 @@ const RecherchePage: React.FC = () => {
     agences: [],
     types: [],
     annees: [],
+    rayons: [],
+    travers: [],
   });
   const [printModal, setPrintModal] = useState<{
     isOpen: boolean;
@@ -57,7 +85,7 @@ const RecherchePage: React.FC = () => {
     title: '',
   });
 
-  // ─── ✅ PAGINATION ──────────────────────────────────────────
+  // ─── PAGINATION ──────────────────────────────────────────
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
   const totalPages = Math.ceil(total / itemsPerPage);
@@ -70,6 +98,7 @@ const RecherchePage: React.FC = () => {
   const [expandedAgence, setExpandedAgence] = useState<number | null>(null);
   const [expandedType, setExpandedType] = useState<number | null>(null);
   const [expandedAnnee, setExpandedAnnee] = useState<string | null>(null);
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
 
   // ─── Chargement des filtres ─────────────────────────────────
   useEffect(() => {
@@ -77,7 +106,13 @@ const RecherchePage: React.FC = () => {
       try {
         const response = await getFilterOptions();
         if (response.success) {
-          setFilterOptions(response.data);
+          setFilterOptions({
+            agences: response.data.agences || [],
+            types: response.data.types || [],
+            annees: response.data.annees || [],
+            rayons: response.data.rayons || [],
+            travers: response.data.travers || [],
+          });
         }
       } catch (error) {
         console.error('Erreur chargement filtres:', error);
@@ -90,7 +125,7 @@ const RecherchePage: React.FC = () => {
   const handleSearch = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     setLoading(true);
-    setCurrentPage(1); // ✅ Réinitialiser la page
+    setCurrentPage(1);
     try {
       const cleanFilters: SearchFilters = {};
       Object.entries(filters).forEach(([key, value]) => {
@@ -120,6 +155,10 @@ const RecherchePage: React.FC = () => {
       annee: '',
       numero_boite: '',
       valeur: '',
+      rayon: '',
+      travers: '',
+      date_debut: '',
+      date_fin: '',
     });
     setResults([]);
     setTotal(0);
@@ -196,13 +235,15 @@ const RecherchePage: React.FC = () => {
     }));
   };
 
+  const activeFiltersCount = Object.values(filters).filter(v => v && v.trim() !== '').length;
+
   return (
     <div className="w-full">
       {/* ─── EN-TÊTE ──────────────────────────────────────────── */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-primary">🔍 Recherche d'archives</h1>
         <p className="text-sm text-muted font-mono mt-1">
-          Recherchez des boîtes par agence, type de document, année ou valeur
+          Recherchez des boîtes par agence, type, année, emplacement ou dates
         </p>
       </div>
 
@@ -269,7 +310,7 @@ const RecherchePage: React.FC = () => {
               />
             </div>
 
-            <div>
+            <div className="lg:col-span-2">
               <label className="block font-mono text-xs text-muted mb-1 font-semibold">Valeur (champ)</label>
               <input
                 type="text"
@@ -280,6 +321,81 @@ const RecherchePage: React.FC = () => {
               />
             </div>
           </div>
+
+          {/* Bouton filtres avancés */}
+          <div>
+            <button
+              type="button"
+              onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+              className="text-accent hover:text-red-700 font-mono text-sm flex items-center gap-2 transition-colors"
+            >
+              <span>{showAdvancedFilters ? '▼' : '▶'}</span>
+              Filtres avancés (Rayon, Travers, Dates)
+              {!showAdvancedFilters && (filters.rayon || filters.travers || filters.date_debut || filters.date_fin) && (
+                <span className="bg-accent text-white text-xs px-2 py-0.5 rounded-full">
+                  {[filters.rayon, filters.travers, filters.date_debut, filters.date_fin].filter(Boolean).length}
+                </span>
+              )}
+            </button>
+          </div>
+
+          {showAdvancedFilters && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 p-4 bg-surface rounded border border-border">
+              <div>
+                <label className="block font-mono text-xs text-muted mb-1 font-semibold">📍 Rayon</label>
+                <select
+                  value={filters.rayon || ''}
+                  onChange={(e) => setFilters({ ...filters, rayon: e.target.value })}
+                  className="w-full border border-border px-3 py-2 rounded focus:outline-none focus:border-accent font-mono text-sm"
+                >
+                  <option value="">Tous les rayons</option>
+                  {filterOptions.rayons.map((rayon) => (
+                    <option key={rayon} value={rayon}>
+                      {rayon}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-mono text-xs text-muted mb-1 font-semibold">📚 Travers</label>
+                <select
+                  value={filters.travers || ''}
+                  onChange={(e) => setFilters({ ...filters, travers: e.target.value })}
+                  className="w-full border border-border px-3 py-2 rounded focus:outline-none focus:border-accent font-mono text-sm"
+                >
+                  <option value="">Tous les travers</option>
+                  {filterOptions.travers.map((travers) => (
+                    <option key={travers} value={travers}>
+                      {travers}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-mono text-xs text-muted mb-1 font-semibold">📅 Date de début</label>
+                <input
+                  type="date"
+                  value={filters.date_debut || ''}
+                  onChange={(e) => setFilters({ ...filters, date_debut: e.target.value })}
+                  max={filters.date_fin || undefined}
+                  className="w-full border border-border px-3 py-2 rounded focus:outline-none focus:border-accent font-mono text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block font-mono text-xs text-muted mb-1 font-semibold">📅 Date de fin</label>
+                <input
+                  type="date"
+                  value={filters.date_fin || ''}
+                  onChange={(e) => setFilters({ ...filters, date_fin: e.target.value })}
+                  min={filters.date_debut || undefined}
+                  className="w-full border border-border px-3 py-2 rounded focus:outline-none focus:border-accent font-mono text-sm"
+                />
+              </div>
+            </div>
+          )}
 
           <div className="flex gap-3 flex-wrap">
             <button
@@ -299,14 +415,18 @@ const RecherchePage: React.FC = () => {
             </button>
           </div>
 
-          {Object.values(filters).some(v => v && v.trim() !== '') && (
+          {activeFiltersCount > 0 && (
             <div className="text-xs text-muted font-mono flex flex-wrap gap-2">
-              <span className="font-semibold">Filtres actifs :</span>
-              {filters.agence && <span className="bg-surface px-2 py-1 rounded">Agence: {filters.agence}</span>}
-              {filters.type && <span className="bg-surface px-2 py-1 rounded">Type: {filters.type}</span>}
-              {filters.annee && <span className="bg-surface px-2 py-1 rounded">Année: {filters.annee}</span>}
-              {filters.numero_boite && <span className="bg-surface px-2 py-1 rounded">N°: {filters.numero_boite}</span>}
-              {filters.valeur && <span className="bg-surface px-2 py-1 rounded">Valeur: {filters.valeur}</span>}
+              <span className="font-semibold">Filtres actifs ({activeFiltersCount}) :</span>
+              {filters.agence && <span className="bg-surface px-2 py-1 rounded">🏢 {filters.agence}</span>}
+              {filters.type && <span className="bg-surface px-2 py-1 rounded">📄 {filters.type}</span>}
+              {filters.annee && <span className="bg-surface px-2 py-1 rounded">📅 {filters.annee}</span>}
+              {filters.numero_boite && <span className="bg-surface px-2 py-1 rounded">📦 {filters.numero_boite}</span>}
+              {filters.valeur && <span className="bg-surface px-2 py-1 rounded">🔍 {filters.valeur}</span>}
+              {filters.rayon && <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded">📍 Rayon: {filters.rayon}</span>}
+              {filters.travers && <span className="bg-purple-100 text-purple-700 px-2 py-1 rounded">📚 Travers: {filters.travers}</span>}
+              {filters.date_debut && <span className="bg-amber-100 text-amber-700 px-2 py-1 rounded">Du: {filters.date_debut}</span>}
+              {filters.date_fin && <span className="bg-amber-100 text-amber-700 px-2 py-1 rounded">Au: {filters.date_fin}</span>}
             </div>
           )}
         </form>
@@ -442,45 +562,107 @@ const RecherchePage: React.FC = () => {
                                         </div>
                                       </div>
 
-                                      {/* Boîtes */}
+                                      {/* ✅ Boîtes avec EMPLACEMENT BIEN VISIBLE */}
                                       {isAnneeExpanded && (
-                                        <div className="ml-6 mt-1 space-y-1">
-                                          {annee.boites.map((boite) => (
-                                            <div
-                                              key={boite.numero_boite}
-                                              className="flex items-center justify-between p-2 bg-surface/30 hover:bg-surface rounded border border-border/50 transition-colors"
-                                            >
-                                              <div className="flex items-center gap-3">
-                                                <span className="text-lg">📦</span>
-                                                <span className="font-mono font-bold text-primary">{boite.numero_boite}</span>
-                                                <div className="text-xs text-muted font-mono flex gap-2 flex-wrap">
-                                                  {Object.entries(boite.metaValues).map(([key, val]) => (
-                                                    <span key={key}>
-                                                      <span className="font-semibold">{val.label}:</span> {val.value}
-                                                    </span>
-                                                  ))}
-                                                </div>
-                                              </div>
-                                              <button
-                                                onClick={() => {
-                                                  const boxes = [{
-                                                    boxNumber: boite.numero_boite,
-                                                    records: [{
-                                                      numero_boite: boite.numero_boite,
-                                                      agence_nom: result.nom,
-                                                      type_document: type.nom,
-                                                      annee: annee.annee,
-                                                      metaValues: boite.metaValues,
-                                                    }],
-                                                  }];
-                                                  handlePrint(boxes, `Boîte ${boite.numero_boite}`);
-                                                }}
-                                                className="text-accent hover:text-red-700 font-mono text-sm px-2 py-1 rounded hover:bg-white/50 transition-colors flex items-center gap-1"
+                                        <div className="ml-6 mt-2 space-y-3">
+                                          {annee.boites.map((boite) => {
+                                            const { rayon, travers } = extractLocation(boite.metaValues);
+                                            
+                                            // Autres metaValues (sans rayon/travers)
+                                            const otherMeta = Object.entries(boite.metaValues || {})
+                                              .filter(([k]) => {
+                                                const kl = k.toLowerCase();
+                                                return !kl.includes('rayon') && !kl.includes('travers');
+                                              });
+
+                                            return (
+                                              <div
+                                                key={boite.numero_boite}
+                                                className="bg-white rounded-lg border-2 border-border hover:border-accent/50 transition-colors overflow-hidden"
                                               >
-                                                <PrinterIcon /> Imprimer
-                                              </button>
-                                            </div>
-                                          ))}
+                                                {/* En-tête : N° boîte */}
+                                                <div className="flex items-center justify-between p-3 bg-surface/30 border-b border-border">
+                                                  <div className="flex items-center gap-3">
+                                                    <span className="text-xl">📦</span>
+                                                    <span className="font-mono font-bold text-lg text-primary">
+                                                      {boite.numero_boite}
+                                                    </span>
+                                                  </div>
+                                                  <button
+                                                    onClick={() => {
+                                                      const boxes = [{
+                                                        boxNumber: boite.numero_boite,
+                                                        records: [{
+                                                          numero_boite: boite.numero_boite,
+                                                          agence_nom: result.nom,
+                                                          type_document: type.nom,
+                                                          annee: annee.annee,
+                                                          metaValues: boite.metaValues,
+                                                        }],
+                                                      }];
+                                                      handlePrint(boxes, `Boîte ${boite.numero_boite}`);
+                                                    }}
+                                                    className="text-accent hover:text-red-700 font-mono text-sm px-3 py-1 rounded hover:bg-white transition-colors flex items-center gap-1"
+                                                  >
+                                                    <PrinterIcon /> Imprimer
+                                                  </button>
+                                                </div>
+
+                                                {/* ✅ EMPLACEMENT EN GRAND */}
+                                                {(rayon || travers) ? (
+                                                  <div className="bg-gradient-to-r from-blue-50 via-purple-50 to-blue-50 p-4 border-b border-border">
+                                                    <p className="text-[10px] text-muted font-mono uppercase tracking-widest mb-2 font-bold">
+                                                      📍 Emplacement physique
+                                                    </p>
+                                                    <div className="flex gap-8 items-center">
+                                                      {rayon && (
+                                                        <div className="flex items-baseline gap-2">
+                                                          <span className="text-xs text-muted font-mono font-semibold">
+                                                            RAYON
+                                                          </span>
+                                                          <span className="text-4xl font-extrabold text-blue-600 font-mono leading-none">
+                                                            {rayon}
+                                                          </span>
+                                                        </div>
+                                                      )}
+                                                      {travers && (
+                                                        <div className="flex items-baseline gap-2">
+                                                          <span className="text-xs text-muted font-mono font-semibold">
+                                                            TRAVERS
+                                                          </span>
+                                                          <span className="text-4xl font-extrabold text-purple-600 font-mono leading-none">
+                                                            {travers}
+                                                          </span>
+                                                        </div>
+                                                      )}
+                                                    </div>
+                                                  </div>
+                                                ) : (
+                                                  <div className="bg-amber-50 p-3 border-b border-border">
+                                                    <p className="text-xs text-amber-700 font-mono">
+                                                      ⚠️ Aucun emplacement enregistré
+                                                    </p>
+                                                  </div>
+                                                )}
+
+                                                {/* Autres informations */}
+                                                {otherMeta.length > 0 && (
+                                                  <div className="p-3 grid grid-cols-2 md:grid-cols-3 gap-2 text-xs font-mono">
+                                                    {otherMeta.map(([key, val]) => (
+                                                      <div key={key} className="flex flex-col">
+                                                        <span className="text-[10px] text-muted uppercase tracking-wide">
+                                                          {(val as any).label || key}
+                                                        </span>
+                                                        <span className="font-medium text-primary truncate">
+                                                          {(val as any).value || '—'}
+                                                        </span>
+                                                      </div>
+                                                    ))}
+                                                  </div>
+                                                )}
+                                              </div>
+                                            );
+                                          })}
                                         </div>
                                       )}
                                     </div>
@@ -498,7 +680,7 @@ const RecherchePage: React.FC = () => {
             })}
           </div>
 
-          {/* ─── ✅ PAGINATION ────────────────────────────────── */}
+          {/* ─── PAGINATION ────────────────────────────────── */}
           {totalPages > 1 && (
             <div className="flex justify-center items-center gap-2 mt-6 pt-4 border-t border-border">
               <button

@@ -81,3 +81,68 @@ export interface FontStyle {
   labelItalic: boolean;
   valueItalic: boolean;
 }
+
+// ✅ NOUVEAU - Types pour la recherche / archivage physique
+
+export interface SearchFilters {
+  agence?: string;
+  type?: string;
+  annee?: string;
+  numero_boite?: string;
+  valeur?: string;
+  agence_id?: number;
+  type_document_id?: number;
+  rayon?: string;        // ✅ NOUVEAU
+  travers?: string;      // ✅ NOUVEAU
+  date_debut?: string;   // ✅ NOUVEAU - Format YYYY-MM-DD
+  date_fin?: string;     // ✅ NOUVEAU - Format YYYY-MM-DD
+}
+
+export interface MetaValue {
+  label: string;
+  field_type: string;
+  value: string;
+}
+
+export interface Boite {
+  numero_boite: string;
+  metaValues: Record<string, MetaValue>;
+}
+
+export interface Annee {
+  annee: string;
+  boites: Boite[];
+  total_boites: number;
+  total_documents: number;
+}
+
+export interface TypeResult {
+  id: number;
+  nom: string;
+  annees: Annee[];
+  total_boites: number;
+  total_documents: number;
+}
+
+export interface AgenceResult {
+  id: number;
+  nom: string;
+  types: TypeResult[];
+  total_boites: number;
+  total_documents: number;
+}
+
+export interface SearchResponse {
+  success: boolean;
+  count: number;
+  data: AgenceResult[];
+  filters: SearchFilters;
+}
+
+export interface FilterOptions {
+  agences: { id: number; nom: string }[];
+  types: { id: number; nom: string }[];
+  annees: string[];
+  rayons: string[];      // ✅ NOUVEAU
+  travers: string[];     // ✅ NOUVEAU
+}
