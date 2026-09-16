@@ -5,26 +5,15 @@ import {
   getFilterOptions, 
   SearchFilters, 
   AgenceResult,
-  TypeResult,
-  Annee,
   Boite,
   FilterOptions 
 } from '../services/searchService';
-import PrintModal from '../components/PrintModal';
 
 // ✅ Icônes SVG inline
 const SearchIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <circle cx="11" cy="11" r="8" />
     <line x1="21" y1="21" x2="16.65" y2="16.65" />
-  </svg>
-);
-
-const PrinterIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <polyline points="6 9 6 2 18 2 18 9" />
-    <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
-    <rect x="6" y="14" width="12" height="8" />
   </svg>
 );
 
@@ -75,16 +64,6 @@ const RecherchePage: React.FC = () => {
     rayons: [],
     travers: [],
   });
-  const [printModal, setPrintModal] = useState<{
-    isOpen: boolean;
-    boxes: Array<{ boxNumber: string; records: any[] }>;
-    title: string;
-  }>({
-    isOpen: false,
-    boxes: [],
-    title: '',
-  });
-
   // ─── PAGINATION ──────────────────────────────────────────
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
@@ -166,73 +145,6 @@ const RecherchePage: React.FC = () => {
     setExpandedAgence(null);
     setExpandedType(null);
     setExpandedAnnee(null);
-  };
-
-  // ─── Impression ─────────────────────────────────────────────
-  const handlePrint = (boxes: Array<{ boxNumber: string; records: any[] }>, title: string) => {
-    setPrintModal({
-      isOpen: true,
-      boxes,
-      title,
-    });
-  };
-
-  const handlePrintClose = () => {
-    setPrintModal({ isOpen: false, boxes: [], title: '' });
-  };
-
-  // ─── Récupérer toutes les boîtes d'un résultat ─────────────
-  const getAllBoxes = (result: AgenceResult) => {
-    const boxes: Array<{ boxNumber: string; records: any[] }> = [];
-    result.types.forEach((type: TypeResult) => {
-      type.annees.forEach((annee: Annee) => {
-        annee.boites.forEach((boite: Boite) => {
-          boxes.push({
-            boxNumber: boite.numero_boite,
-            records: [{
-              numero_boite: boite.numero_boite,
-              agence_nom: result.nom,
-              type_document: type.nom,
-              annee: annee.annee,
-              metaValues: boite.metaValues,
-            }],
-          });
-        });
-      });
-    });
-    return boxes;
-  };
-
-  const getBoxesByType = (result: AgenceResult, type: TypeResult) => {
-    const boxes: Array<{ boxNumber: string; records: any[] }> = [];
-    type.annees.forEach((annee: Annee) => {
-      annee.boites.forEach((boite: Boite) => {
-        boxes.push({
-          boxNumber: boite.numero_boite,
-          records: [{
-            numero_boite: boite.numero_boite,
-            agence_nom: result.nom,
-            type_document: type.nom,
-            annee: annee.annee,
-            metaValues: boite.metaValues,
-          }],
-        });
-      });
-    });
-    return boxes;
-  };
-
-  const getBoxesByAnnee = (result: AgenceResult, type: TypeResult, annee: Annee) => {
-    return annee.boites.map((boite: Boite) => ({
-      boxNumber: boite.numero_boite,
-      records: [{
-        numero_boite: boite.numero_boite,
-        agence_nom: result.nom,
-        type_document: type.nom,
-        annee: annee.annee,
-        metaValues: boite.metaValues,
-      }],
-    }));
   };
 
   const activeFiltersCount = Object.values(filters).filter(v => v && v.trim() !== '').length;
@@ -439,18 +351,6 @@ const RecherchePage: React.FC = () => {
             <p className="text-sm text-muted font-mono">
               {total} boîte{total > 1 ? 's' : ''} trouvée{total > 1 ? 's' : ''}
             </p>
-            <button
-              onClick={() => {
-                const allBoxes: Array<{ boxNumber: string; records: any[] }> = [];
-                results.forEach(result => {
-                  allBoxes.push(...getAllBoxes(result));
-                });
-                handlePrint(allBoxes, `Résultats de recherche (${total} boîtes)`);
-              }}
-              className="bg-accent hover:bg-red-700 text-white px-4 py-2 rounded font-mono text-sm transition-colors flex items-center gap-2"
-            >
-              <PrinterIcon /> Tout imprimer
-            </button>
           </div>
 
           {/* Résultats hiérarchiques */}
@@ -475,16 +375,6 @@ const RecherchePage: React.FC = () => {
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          const boxes = getAllBoxes(result);
-                          handlePrint(boxes, `Toutes les boîtes - ${result.nom}`);
-                        }}
-                        className="text-accent hover:text-red-700 font-mono text-sm px-2 py-1 rounded hover:bg-white/50 transition-colors flex items-center gap-1"
-                      >
-                        <PrinterIcon /> Imprimer tout
-                      </button>
                       <span className="text-muted">{isAgenceExpanded ? '▼' : '▶'}</span>
                     </div>
                   </div>
@@ -511,16 +401,6 @@ const RecherchePage: React.FC = () => {
                                 </div>
                               </div>
                               <div className="flex items-center gap-3">
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    const boxes = getBoxesByType(result, type);
-                                    handlePrint(boxes, `${type.nom} - ${result.nom}`);
-                                  }}
-                                  className="text-accent hover:text-red-700 font-mono text-sm px-2 py-1 rounded hover:bg-white/50 transition-colors flex items-center gap-1"
-                                >
-                                  <PrinterIcon /> Imprimer
-                                </button>
                                 <span className="text-muted text-sm">{isTypeExpanded ? '▼' : '▶'}</span>
                               </div>
                             </div>
@@ -548,16 +428,6 @@ const RecherchePage: React.FC = () => {
                                           </div>
                                         </div>
                                         <div className="flex items-center gap-3">
-                                          <button
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              const boxes = getBoxesByAnnee(result, type, annee);
-                                              handlePrint(boxes, `Année ${annee.annee} - ${type.nom}`);
-                                            }}
-                                            className="text-accent hover:text-red-700 font-mono text-sm px-2 py-1 rounded hover:bg-white/50 transition-colors flex items-center gap-1"
-                                          >
-                                            <PrinterIcon /> Imprimer
-                                          </button>
                                           <span className="text-muted text-sm">{isAnneeExpanded ? '▼' : '▶'}</span>
                                         </div>
                                       </div>
@@ -588,24 +458,6 @@ const RecherchePage: React.FC = () => {
                                                       {boite.numero_boite}
                                                     </span>
                                                   </div>
-                                                  <button
-                                                    onClick={() => {
-                                                      const boxes = [{
-                                                        boxNumber: boite.numero_boite,
-                                                        records: [{
-                                                          numero_boite: boite.numero_boite,
-                                                          agence_nom: result.nom,
-                                                          type_document: type.nom,
-                                                          annee: annee.annee,
-                                                          metaValues: boite.metaValues,
-                                                        }],
-                                                      }];
-                                                      handlePrint(boxes, `Boîte ${boite.numero_boite}`);
-                                                    }}
-                                                    className="text-accent hover:text-red-700 font-mono text-sm px-3 py-1 rounded hover:bg-white transition-colors flex items-center gap-1"
-                                                  >
-                                                    <PrinterIcon /> Imprimer
-                                                  </button>
                                                 </div>
 
                                                 {/* ✅ EMPLACEMENT EN GRAND */}
@@ -715,19 +567,6 @@ const RecherchePage: React.FC = () => {
         )
       )}
 
-      {/* ─── MODAL D'IMPRESSION ────────────────────────────────── */}
-      <PrintModal
-        isOpen={printModal.isOpen}
-        onClose={handlePrintClose}
-        boxes={printModal.boxes}
-        fields={['numero_boite', 'agence_nom', 'type_document', 'annee']}
-        title={printModal.title}
-        filename={`Recherche_${new Date().toISOString().slice(0, 10)}`}
-        total={printModal.boxes.length}
-        sourceTotal={printModal.boxes.length}
-        onPrint={() => window.print()}
-        onReset={handlePrintClose}
-      />
     </div>
   );
 };

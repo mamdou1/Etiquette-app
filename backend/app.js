@@ -21,7 +21,8 @@ app.get("/api/health", (req, res) => {
 
 const startServer = async () => {
   try {
-    await initDatabase();
+    // Applique les migrations de schéma au démarrage, notamment après un pull.
+    await initDatabase({ alter: true });
     console.log("✅ Base de données MySQL prête");
 
     app.listen(PORT, () => {
