@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { paginateSearchResults } from '../utils/searchPagination';
 import { useSettings } from '../contexts/SettingsContext';
 import { 
   search, 
   getFilterOptions, 
   SearchFilters, 
   AgenceResult,
-  Boite,
   FilterOptions 
 } from '../services/searchService';
 
@@ -56,7 +56,6 @@ const RecherchePage: React.FC = () => {
   });
   const [results, setResults] = useState<AgenceResult[]>([]);
   const [loading, setLoading] = useState(false);
-  const [total, setTotal] = useState(0);
   const [filterOptions, setFilterOptions] = useState<FilterOptions>({
     agences: [],
     types: [],
@@ -67,10 +66,9 @@ const RecherchePage: React.FC = () => {
   // ─── PAGINATION ──────────────────────────────────────────
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
-  const totalPages = Math.ceil(total / itemsPerPage);
-  const paginatedResults = results.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
+  const { paginatedResults, total, totalPages, firstItem, lastItem } = useMemo(
+    () => paginateSearchResults(results, currentPage, itemsPerPage),
+    [results, currentPage]
   );
 
   // ─── États d'expansion ──────────────────────────────────────
@@ -105,6 +103,9 @@ const RecherchePage: React.FC = () => {
     if (e) e.preventDefault();
     setLoading(true);
     setCurrentPage(1);
+    setExpandedAgence(null);
+    setExpandedType(null);
+    setExpandedAnnee(null);
     try {
       const cleanFilters: SearchFilters = {};
       Object.entries(filters).forEach(([key, value]) => {
@@ -116,7 +117,6 @@ const RecherchePage: React.FC = () => {
       const response = await search(cleanFilters);
       if (response.success) {
         setResults(response.data);
-        setTotal(response.count);
         setVisibleFields(['numero_boite', 'agence_nom', 'type_document', 'caissiers', 'annee']);
       }
     } catch (error) {
@@ -140,7 +140,6 @@ const RecherchePage: React.FC = () => {
       date_fin: '',
     });
     setResults([]);
-    setTotal(0);
     setCurrentPage(1);
     setExpandedAgence(null);
     setExpandedType(null);
@@ -350,6 +349,7 @@ const RecherchePage: React.FC = () => {
           <div className="flex justify-between items-center mb-4">
             <p className="text-sm text-muted font-mono">
               {total} boîte{total > 1 ? 's' : ''} trouvée{total > 1 ? 's' : ''}
+              {' • '}Boîtes {firstItem} à {lastItem} affichées
             </p>
           </div>
 
@@ -409,7 +409,7 @@ const RecherchePage: React.FC = () => {
                             {isTypeExpanded && (
                               <div className="ml-6 mt-2 space-y-2">
                                 {type.annees.map((annee) => {
-                                  const key = `${type.id}-${annee.annee}`;
+                                  const key = `${result.id}-${type.id}-${annee.annee}`;
                                   const isAnneeExpanded = expandedAnnee === key;
 
                                   return (
@@ -534,25 +534,25 @@ const RecherchePage: React.FC = () => {
 
           {/* ─── PAGINATION ────────────────────────────────── */}
           {totalPages > 1 && (
-            <div className="flex justify-center items-center gap-2 mt-6 pt-4 border-t border-border">
+            <nav aria-label="Pagination des résultats de recherche" className="flex flex-wrap justify-center items-center gap-2 mt-6 pt-4 border-t border-border">
               <button
                 onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                disabled={currentPage === 1}
+                disabled={loading || currentPage === 1}
                 className="px-3 py-1 border border-border rounded text-sm font-mono disabled:opacity-50 hover:bg-surface transition-colors"
               >
                 ◀ Précédent
               </button>
-              <span className="text-sm font-mono">
+              <span className="text-sm font-mono" aria-live="polite">
                 Page {currentPage} / {totalPages}
               </span>
               <button
                 onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                disabled={currentPage === totalPages}
+                disabled={loading || currentPage === totalPages}
                 className="px-3 py-1 border border-border rounded text-sm font-mono disabled:opacity-50 hover:bg-surface transition-colors"
               >
                 Suivant ▶
               </button>
-            </div>
+            </nav>
           )}
         </div>
       ) : (
