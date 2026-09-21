@@ -2,6 +2,7 @@ import React, { useMemo } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { LabelRecord, LabelSize, LabelValue } from "../types";
 import { useSettings } from "../contexts/SettingsContext";
+import formatProductionDates from "../utils/formatProductionDates";
 
 interface Props {
   record: LabelRecord;
@@ -24,7 +25,7 @@ const LabelCard: React.FC<Props> = ({
   isCaissier = false,
   metaFields = [],
 }) => {
-  const { fontSize, fontStyle } = useSettings();
+  const { fontSize, fontStyle, fontFamily } = useSettings();
 
   // ─── Helper pour récupérer la valeur ──────────────────────
   const getFieldValue = (key: string): string => {
@@ -69,45 +70,56 @@ const LabelCard: React.FC<Props> = ({
       "dgei",
       "agence_nom_agence",
       "Non Agence",
-      "libelle_agence"
+      "libelle_agence",
     ];
-    
+
     for (const key of agenceKeys) {
       const value = getFieldValue(key);
       if (value) return value;
     }
-    
+
     for (const field of visibleFields) {
       const lowerField = field.toLowerCase();
-      if (lowerField.includes("agence") || lowerField.includes("dgei") || 
-          lowerField.includes("nom")) {
+      if (
+        lowerField.includes("agence") ||
+        lowerField.includes("dgei") ||
+        lowerField.includes("nom")
+      ) {
         const value = getFieldValue(field);
         if (value) return value;
       }
     }
-    
+
     if (metaFields.length > 0) {
       for (const mf of metaFields) {
         const lowerLabel = mf.label.toLowerCase();
         const lowerName = mf.name.toLowerCase();
-        if (lowerLabel.includes("agence") || lowerName.includes("agence") ||
-            lowerLabel.includes("dgei") || lowerName.includes("dgei") ||
-            lowerLabel.includes("nom") || lowerName.includes("nom")) {
+        if (
+          lowerLabel.includes("agence") ||
+          lowerName.includes("agence") ||
+          lowerLabel.includes("dgei") ||
+          lowerName.includes("dgei") ||
+          lowerLabel.includes("nom") ||
+          lowerName.includes("nom")
+        ) {
           const value = getFieldValue(mf.name) || getFieldValue(mf.label);
           if (value) return value;
         }
       }
     }
-    
+
     for (const key of Object.keys(record)) {
       const lowerKey = key.toLowerCase();
-      if (lowerKey.includes("agence") || lowerKey.includes("dgei") || 
-          lowerKey.includes("nom")) {
+      if (
+        lowerKey.includes("agence") ||
+        lowerKey.includes("dgei") ||
+        lowerKey.includes("nom")
+      ) {
         const value = getFieldValue(key);
         if (value) return value;
       }
     }
-    
+
     return "";
   }, [record, visibleFields, metaFields]);
 
@@ -119,19 +131,23 @@ const LabelCard: React.FC<Props> = ({
       // Respecter exactement l'ordre et les champs cochés du panneau,
       // y compris le numéro de boîte qui n'est pas toujours un MetaField.
       for (const fieldName of visibleFields) {
-        const mf = metaFields.find(field => field.name === fieldName || field.label === fieldName);
+        const mf = metaFields.find(
+          (field) => field.name === fieldName || field.label === fieldName,
+        );
         const name = mf?.name || fieldName;
         const label = mf?.label || fieldName;
         const value = getFieldValue(name) || getFieldValue(label);
-        
-        const isAgence = value === agenceValue && agenceValue !== "" && 
-          (name.toLowerCase().includes("agence") || 
-           label.toLowerCase().includes("agence") ||
-           name.toLowerCase().includes("dgei") ||
-           label.toLowerCase().includes("dgei") ||
-           name.toLowerCase().includes("nom") ||
-           label.toLowerCase().includes("nom"));
-        
+
+        const isAgence =
+          value === agenceValue &&
+          agenceValue !== "" &&
+          (name.toLowerCase().includes("agence") ||
+            label.toLowerCase().includes("agence") ||
+            name.toLowerCase().includes("dgei") ||
+            label.toLowerCase().includes("dgei") ||
+            name.toLowerCase().includes("nom") ||
+            label.toLowerCase().includes("nom"));
+
         if (value && !isAgence) {
           result.push(value);
         }
@@ -141,11 +157,13 @@ const LabelCard: React.FC<Props> = ({
 
     for (const field of visibleFields) {
       const value = getFieldValue(field);
-      const isAgence = value === agenceValue && agenceValue !== "" && 
-        (field.toLowerCase().includes("agence") || 
-         field.toLowerCase().includes("dgei") ||
-         field.toLowerCase().includes("nom"));
-      
+      const isAgence =
+        value === agenceValue &&
+        agenceValue !== "" &&
+        (field.toLowerCase().includes("agence") ||
+          field.toLowerCase().includes("dgei") ||
+          field.toLowerCase().includes("nom"));
+
       if (value && !isAgence) {
         result.push(value);
       }
@@ -171,6 +189,18 @@ const LabelCard: React.FC<Props> = ({
     }
     return lines.join(" | ");
   }, [record, allFields, boxNumber, metaFields]);
+
+  // Ensure QR payload isn't too long for the encoder (prevents "Data too long" errors)
+  const qrValue = useMemo(() => {
+    const MAX_QR_LENGTH = 800;
+    if (qrData.length > MAX_QR_LENGTH) {
+      console.warn(
+        `QR data length (${qrData.length}) exceeds ${MAX_QR_LENGTH} chars — truncating to avoid encoder error`,
+      );
+      return qrData.slice(0, MAX_QR_LENGTH) + "...";
+    }
+    return qrData;
+  }, [qrData]);
 
   const hasData = displayValues.length > 0;
   const fieldCount = displayValues.length;
@@ -221,11 +251,12 @@ const LabelCard: React.FC<Props> = ({
         <div className="text-center mb-5 pb-4 border-b-2 border-border/60">
           <span
             className="font-mono font-extrabold text-primary tracking-wider"
-            style={{ 
-              fontSize: `${fontSize.agenceSize}px`, 
+            style={{
+              fontSize: `${fontSize.agenceSize}px`,
               letterSpacing: "0.15em",
               lineHeight: "1.8",
-              display: "block"
+              display: "block",
+              fontFamily: fontFamily,
             }}
           >
             {agenceValue}
@@ -240,11 +271,41 @@ const LabelCard: React.FC<Props> = ({
       ) : (
         <>
           {/* Valeurs centrales avec espaces - Utilise valueSize */}
-          <div className="print-label-content flex-1 space-y-4 py-3 text-center">
+          <div className="print-label-content flex-1  text-center">
             {displayValues.map((value, index) => {
               // Vérifier si la valeur est le numéro de boîte
               const isBoxNumber = value === boxNumber;
-              
+              // If the value contains multiple dates (e.g., comma separated dd/mm/yyyy), group them
+              const datePattern = /\d{2}\/\d{2}\/\d{4}/g;
+              const found = String(value).match(datePattern);
+
+              if (found && found.length > 1) {
+                const groups = formatProductionDates(found);
+                return (
+                  <div
+                    key={index}
+                    className="font-mono p-3 rounded bg-white/50 hover:bg-white/80 transition-colors"
+                  >
+                    <div className={`flex flex-wrap justify-center gap-2`}>
+                      {groups.map((g, gi) => (
+                        <div
+                          key={gi}
+                          className="px-1 text-center text-sm"
+                          style={{ minWidth: 100 }}
+                        >
+                          <span
+                            className={`text-primary ${valueWeightClass} ${valueItalicClass}`}
+                            style={{ fontSize: valueSize, fontFamily }}
+                          >
+                            {g}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              }
+
               return (
                 <div
                   key={index}
@@ -254,6 +315,7 @@ const LabelCard: React.FC<Props> = ({
                     className={`text-primary ${valueWeightClass} ${valueItalicClass}`}
                     style={{
                       fontSize: valueSize,
+                      fontFamily: fontFamily,
                       whiteSpace: "normal",
                       wordBreak: "break-word",
                       lineHeight: "2.0",
@@ -267,10 +329,13 @@ const LabelCard: React.FC<Props> = ({
           </div>
 
           {/* QR Code en bas avec plus d'espace */}
-          <div className="print-label-qr mt-4 flex justify-center">
-            <div className="bg-white p-3 rounded shadow-sm border-border/30">
+          <div className="print-label-qr  flex justify-center">
+            <div
+              className="bg-white mb-48 rounded shadow-sm border-border/30"
+              title={qrData}
+            >
               <QRCodeSVG
-                value={qrData}
+                value={qrValue}
                 size={qrSize}
                 fgColor="#1a1a2e"
                 bgColor="#ffffff"

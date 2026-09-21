@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500;700&family=DM+Sans:wght@300;400;500;700&display=swap');
+@import url("https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500;700&family=DM+Sans:wght@300;400;500;700&display=swap");
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -9,7 +9,7 @@
 
 body {
   margin: 0;
-  font-family: 'DM Sans', sans-serif;
+  font-family: "DM Sans", sans-serif;
   background: #f0ede8;
   color: #1a1a2e;
 }
@@ -78,7 +78,7 @@ body {
 /* ─── Étiquette STYLISÉE ─────────────────────────────── */
 .label-card {
   border: 1px solid #c8c5bf;
-  padding: 3mm;
+  padding: 1mm;
   position: relative;
   overflow: hidden;
   background: white;
@@ -89,7 +89,9 @@ body {
   height: 100%;
   min-height: unset;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
-  transition: transform 0.2s, box-shadow 0.2s;
+  transition:
+    transform 0.2s,
+    box-shadow 0.2s;
 }
 
 .label-card:hover {
@@ -99,7 +101,7 @@ body {
 
 /* Bande colorée sur le côté */
 .label-card::before {
-  content: '';
+  content: "";
   position: absolute;
   top: 0;
   left: 0;
@@ -153,7 +155,7 @@ body {
   align-items: center;
   text-align: center;
   flex: 1;
-  gap: 1px;
+  /* gap: 1px; */
 }
 
 /* Style pour l'agence en haut */
@@ -176,7 +178,11 @@ body {
 /* ─── Impression ──────────────────────────────────────── */
 @media print {
   /* Seules les feuilles et leurs conteneurs participent à la pagination. */
-  body:has(.print-container) #root *:not(.print-container):not(.print-container *):not(:has(.print-container)) {
+  body:has(.print-container)
+    #root
+    *:not(.print-container):not(.print-container *):not(
+      :has(.print-container)
+    ) {
     display: none !important;
   }
 
@@ -349,10 +355,18 @@ body {
     width: 2px !important;
   }
 
-  .label-card .field-label { font-size: 6pt !important; }
-  .label-card .field-value { font-size: 8pt !important; }
-  .label-card .box-number  { font-size: 7pt !important; }
-  .label-card .agence-name { font-size: 14pt !important; }
+  .label-card .field-label {
+    font-size: 6pt !important;
+  }
+  .label-card .field-value {
+    font-size: 8pt !important;
+  }
+  .label-card .box-number {
+    font-size: 7pt !important;
+  }
+  .label-card .agence-name {
+    font-size: 14pt !important;
+  }
 
   .label-card .qr-wrapper svg,
   .label-card .qr-wrapper canvas,
@@ -389,13 +403,13 @@ body {
     aspect-ratio: auto;
     height: auto;
   }
-  
+
   .label-grid {
     grid-template-columns: 1fr !important;
     grid-template-rows: auto !important;
     gap: 10px;
   }
-  
+
   .label-card {
     min-height: 160px;
     padding: 10px 12px;

@@ -69,19 +69,27 @@ export interface Archive {
 }
 
 export interface FontSize {
-  labelSize: number;   // 8-24px
-  valueSize: number;   // 10-36px
-  qrSize: number;      // 30-120px
-  agenceSize: number;  // 20-48px
+  labelSize: number; // 8-24px
+  valueSize: number; // 10-36px
+  qrSize: number; // 30-120px
+  agenceSize: number; // 20-48px
 }
 
 export interface FontStyle {
-  labelWeight: 'normal' | 'semibold' | 'bold';
-  valueWeight: 'normal' | 'semibold' | 'bold';
+  labelWeight: "normal" | "semibold" | "bold";
+  valueWeight: "normal" | "semibold" | "bold";
   labelItalic: boolean;
   valueItalic: boolean;
 }
 
+export type FontFamily =
+  | "Arial"
+  | "Calibri"
+  | "Helvetica"
+  | "Times New Roman"
+  | "Courier New"
+  | "Georgia"
+  | string;
 // ✅ NOUVEAU - Types pour la recherche / archivage physique
 
 export interface SearchFilters {
@@ -92,10 +100,10 @@ export interface SearchFilters {
   valeur?: string;
   agence_id?: number;
   type_document_id?: number;
-  rayon?: string;        // ✅ NOUVEAU
-  travers?: string;      // ✅ NOUVEAU
-  date_debut?: string;   // ✅ NOUVEAU - Format YYYY-MM-DD
-  date_fin?: string;     // ✅ NOUVEAU - Format YYYY-MM-DD
+  rayon?: string; // ✅ NOUVEAU
+  travers?: string; // ✅ NOUVEAU
+  date_debut?: string; // ✅ NOUVEAU - Format YYYY-MM-DD
+  date_fin?: string; // ✅ NOUVEAU - Format YYYY-MM-DD
 }
 
 export interface MetaValue {
@@ -143,6 +151,6 @@ export interface FilterOptions {
   agences: { id: number; nom: string }[];
   types: { id: number; nom: string }[];
   annees: string[];
-  rayons: string[];      // ✅ NOUVEAU
-  travers: string[];     // ✅ NOUVEAU
+  rayons: string[]; // ✅ NOUVEAU
+  travers: string[]; // ✅ NOUVEAU
 }
