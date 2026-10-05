@@ -35,31 +35,13 @@ export function formatProductionDates(dates: string[]): string[] {
     if (uniq.length === 0 || uniq[uniq.length - 1] !== t) uniq.push(t);
   }
 
-  const DAY = 24 * 60 * 60 * 1000;
-  const ranges: string[] = [];
+  // Return only the two extremes (min and max) as a single range.
+  if (uniq.length === 0) return [];
+  if (uniq.length === 1) return [formatDateDMY(new Date(uniq[0]))];
 
-  let i = 0;
-  while (i < uniq.length) {
-    let start = uniq[i];
-    let end = start;
-    let j = i + 1;
-    while (j < uniq.length && uniq[j] - end === DAY) {
-      end = uniq[j];
-      j += 1;
-    }
-
-    if (start === end) {
-      ranges.push(formatDateDMY(new Date(start)));
-    } else {
-      ranges.push(
-        `${formatDateDMY(new Date(start))} → ${formatDateDMY(new Date(end))}`,
-      );
-    }
-
-    i = j;
-  }
-
-  return ranges;
+  const first = formatDateDMY(new Date(uniq[0]));
+  const last = formatDateDMY(new Date(uniq[uniq.length - 1]));
+  return [`${first} → ${last}`];
 }
 
 export default formatProductionDates;

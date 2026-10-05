@@ -272,6 +272,12 @@ function detectColumn(headers, aliases) {
 }
 
 function detectBoxColumn(headers) {
+  // Une colonne explicitement nommée boîte prime sur les alias génériques « N° ».
+  const explicitBoxColumn = headers.find(header => {
+    const key = normalizeText(header).replace(/[^a-z0-9]/g, '');
+    return /^(?:(?:n|no|num|numero)(?:de)?(?:la)?boite|boite|boxnumber|box|numbox|nobox|numerobox)$/.test(key);
+  });
+  if (explicitBoxColumn) return explicitBoxColumn;
   let boxColumn = detectColumn(headers, FIELD_ALIASES.box);
   if (boxColumn) return boxColumn;
 

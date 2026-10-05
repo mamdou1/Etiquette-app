@@ -36,7 +36,7 @@ export interface UploadResponse {
 
 export type ColumnCount = 2 | 3 | 4;
 export type LabelSize = "sm" | "md" | "lg";
-export type LabelsPerPage = 2 | 3;
+export type LabelsPerPage = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
 
 export interface FieldFilter {
   value?: string;

@@ -52,6 +52,10 @@ const SettingsPanel: React.FC<Props> = ({
   metaFields = [],
 }) => {
   const {
+    showQr, setShowQr,
+    valueSpacing, setValueSpacing,
+    boxPrefix, setBoxPrefix,
+    fieldRange, setFieldRange,
     cols,
     size,
     fontSize,
@@ -60,6 +64,8 @@ const SettingsPanel: React.FC<Props> = ({
     visibleFields,
     filters,
     labelsPerPage,
+    labelLayout,
+    setLabelLayout,
     setCols,
     setSize,
     setFontSize,
@@ -398,28 +404,75 @@ const SettingsPanel: React.FC<Props> = ({
         <p className="font-mono text-[10px] uppercase tracking-widest text-muted mb-3">
           05 - Étiquettes par page
         </p>
-        <div className="flex gap-2">
-          {([2, 3] as const).map((n) => (
+        <div className="grid grid-cols-5 gap-2">
+          {([1, 2, 3, 4, 5, 6, 7, 8, 9, 10] as const).map((n) => (
             <button
               key={n}
               onClick={() => setLabelsPerPage(n)}
               className={`flex-1 py-2 border font-mono text-sm font-medium transition-colors
                 ${labelsPerPage === n ? "bg-accent border-accent text-white" : "bg-white border-border hover:border-muted"}`}
             >
-              {n} étiquettes
+              {n}
             </button>
           ))}
         </div>
+        <label className="block mt-3 text-xs" htmlFor="label-layout">Disposition</label>
+        <select id="label-layout" value={labelLayout} onChange={e => setLabelLayout(e.target.value as 'auto' | 'row')} className="w-full border border-border rounded p-2 mt-1 text-sm">
+          <option value="auto">Automatique (2 rangées à partir de 4)</option>
+          <option value="row">Toutes côte à côte</option>
+        </select>
         <p className="mt-2 font-mono text-[10px] text-muted text-center">
-          {labelsPerPage === 2
-            ? "2 colonnes × 1 ligne"
-            : "3 colonnes × 1 ligne"}
+          {labelLayout === 'row' || labelsPerPage <= 3
+            ? `${labelsPerPage} colonnes × 1 rangée`
+            : `${Math.ceil(labelsPerPage / 2)} colonnes × 2 rangées`}
         </p>
       </div>
 
       <div>
         <p className="font-mono text-[10px] uppercase tracking-widest text-muted mb-3">
-          06 - Tailles des polices (px)
+          06 - Contenu et espacement
+        </p>
+        <div className="flex items-center justify-between mb-3">
+          <span id="show-qr-label" className="text-sm">Afficher les QR codes</span>
+          <button type="button" role="switch" aria-checked={showQr} aria-labelledby="show-qr-label"
+            onClick={() => setShowQr(!showQr)}
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${showQr ? 'bg-accent' : 'bg-gray-300'}`}>
+            <span className={`inline-block h-4 w-4 rounded-full bg-white transition-transform ${showQr ? 'translate-x-6' : 'translate-x-1'}`} />
+          </button>
+        </div>
+        <label htmlFor="value-spacing" className="block text-xs mb-1">Espacement entre les valeurs : {valueSpacing} px</label>
+        <input id="value-spacing" type="range" min="0" max="40" step="1" value={valueSpacing}
+          onChange={e => setValueSpacing(Number(e.target.value))} className="w-full accent-accent mb-3" />
+        <label htmlFor="box-prefix" className="block text-xs mb-1">Libellé avant le numéro</label>
+        <input id="box-prefix" type="text" list="box-prefix-options" value={boxPrefix}
+          onChange={e => setBoxPrefix(e.target.value)} placeholder="Boîte N°"
+          className="w-full border border-border rounded p-2 text-sm" />
+        <datalist id="box-prefix-options"><option value="Boîte N°" /><option value="N° Chrono" /><option value="Box" /></datalist>
+        <div className="mt-4 border-t border-border pt-3">
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={fieldRange.enabled} onChange={e => setFieldRange({ ...fieldRange, enabled: e.target.checked })} />
+            Relier deux champs avec « à »
+          </label>
+          {fieldRange.enabled && <div className="mt-2 space-y-2">
+            <label className="block text-xs" htmlFor="range-from">Champ de début</label>
+            <select id="range-from" value={fields.includes(fieldRange.from) ? fieldRange.from : ''} onChange={e => setFieldRange({ ...fieldRange, from: e.target.value })} className="w-full border rounded p-2 text-sm">
+              <option value="">Choisir un champ</option>
+              {fields.map(field => <option key={field} value={field} disabled={field === fieldRange.to}>{metaFields.find(mf => mf.name === field)?.label || field}</option>)}
+            </select>
+            <label className="block text-xs" htmlFor="range-to">Champ de fin</label>
+            <select id="range-to" value={fields.includes(fieldRange.to) ? fieldRange.to : ''} onChange={e => setFieldRange({ ...fieldRange, to: e.target.value })} className="w-full border rounded p-2 text-sm">
+              <option value="">Choisir un champ</option>
+              {fields.map(field => <option key={field} value={field} disabled={field === fieldRange.from}>{metaFields.find(mf => mf.name === field)?.label || field}</option>)}
+            </select>
+            <p className="text-xs text-muted">Exemple : 285887 à 286182. Les deux champs doivent être affichés et renseignés.</p>
+          </div>}
+        </div>
+        <p className="text-xs text-muted mt-2">Ces réglages s’appliquent aux étiquettes de l’aperçu et à leur impression.</p>
+      </div>
+
+      <div>
+        <p className="font-mono text-[10px] uppercase tracking-widest text-muted mb-3">
+          Tailles des polices (px)
         </p>
 
         <div className="mb-3">
@@ -458,24 +511,29 @@ const SettingsPanel: React.FC<Props> = ({
 
         <div className="mb-3">
           <div className="flex justify-between font-mono text-xs text-muted">
-            <label>QR Code</label>
+            <label htmlFor="qr-size">QR Code</label>
             <span>{fontSize.qrSize}px</span>
           </div>
           <input
             type="range"
-            min="30"
-            max="120"
+            id="qr-size"
+            min="96"
+            max="260"
             value={fontSize.qrSize}
             onChange={(e) =>
               setFontSize({ ...fontSize, qrSize: parseInt(e.target.value) })
             }
             className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-accent"
           />
+          <p className="text-xs text-muted mt-1">
+            Pour un QR chargé, privilégiez 220 à 260 px. Deux QR passent l’un
+            sous l’autre si nécessaire.
+          </p>
         </div>
 
         <div className="mb-3">
           <div className="flex justify-between font-mono text-xs text-muted">
-            <label>Agence</label>
+            <label>Service Producteur</label>
             <span>{fontSize.agenceSize}px</span>
           </div>
           <input

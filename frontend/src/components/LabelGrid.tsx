@@ -58,6 +58,7 @@ const LabelGrid: React.FC<Props> = ({
                 visibleFields={visibleFields}
                 size={size}
                 boxNumber={box.boxNumber}
+                boxField={boxField}
                 isCaissier={
                   String(record.caissiers || "").trim() !== "" ||
                   String(record.caissier || "").trim() !== ""

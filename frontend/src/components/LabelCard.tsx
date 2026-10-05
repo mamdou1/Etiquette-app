@@ -1,8 +1,13 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
+import { isBoxField, resolveBoxNumber } from '../utils/boxField';
+import { createPortal } from "react-dom";
+import BoxDetailsTable from "./BoxDetailsTable";
 import { LabelRecord, LabelSize, LabelValue } from "../types";
 import { useSettings } from "../contexts/SettingsContext";
 import formatProductionDates from "../utils/formatProductionDates";
+import { splitQrContent } from "../utils/qrParts";
+import { joinLabelFieldRange } from "../utils/labelFieldRange";
 
 interface Props {
   record: LabelRecord;
@@ -11,6 +16,7 @@ interface Props {
   size: LabelSize;
   width?: number;
   boxNumber: string;
+  boxField?: string;
   isCaissier?: boolean;
   metaFields?: Array<{ name: string; label: string; field_type: string }>;
 }
@@ -21,13 +27,29 @@ const LabelCard: React.FC<Props> = ({
   visibleFields,
   size,
   width,
-  boxNumber,
+  boxNumber: suppliedBoxNumber,
+  boxField,
   isCaissier = false,
   metaFields = [],
 }) => {
-  const { fontSize, fontStyle, fontFamily } = useSettings();
+  const boxNumber = resolveBoxNumber(record, suppliedBoxNumber);
+  const isNumberField = (name: string) => {
+    const field = metaFields.find(field => field.name === name || field.label === name);
+    return isBoxField(name) || Boolean(field && (isBoxField(field.name) || isBoxField(field.label))) ||
+      (name === boxField && !Object.keys(record).some(isBoxField));
+  };
+  const {
+    fontSize,
+    fontStyle,
+    fontFamily,
+    showQr,
+    valueSpacing,
+    boxPrefix,
+    fieldRange,
+  } = useSettings();
+  const displayBoxPrefix = boxPrefix.trim() || "Boîte N°";
 
-  // ─── Helper pour récupérer la valeur ──────────────────────
+  // ─── Helper pour récupérer la valeur  ──────────────────────
   const getFieldValue = (key: string): string => {
     // 1. Direct dans record
     if (
@@ -125,7 +147,14 @@ const LabelCard: React.FC<Props> = ({
 
   // ─── Récupération des valeurs (EXCLURE l'agence) ─────────
   const displayValues = useMemo(() => {
-    const result: string[] = [];
+    const result: Array<{ name: string; value: string }> = [];
+    const finish = () => {
+      const boxFields = result.filter(field => isNumberField(field.name));
+      const preferred = boxFields.find(field => field.name !== 'numero_boite' && field.name !== 'boxNumber') || boxFields[0];
+      const unique = result.filter(field => !isNumberField(field.name) || field === preferred)
+        .map(field => isNumberField(field.name) ? { ...field, value: boxNumber } : field);
+      return joinLabelFieldRange(unique, fieldRange);
+    };
 
     if (metaFields.length > 0) {
       // Respecter exactement l'ordre et les champs cochés du panneau,
@@ -149,10 +178,10 @@ const LabelCard: React.FC<Props> = ({
             label.toLowerCase().includes("nom"));
 
         if (value && !isAgence) {
-          result.push(value);
+          result.push({ name: fieldName, value });
         }
       }
-      return result;
+      return finish();
     }
 
     for (const field of visibleFields) {
@@ -165,16 +194,63 @@ const LabelCard: React.FC<Props> = ({
           field.toLowerCase().includes("nom"));
 
       if (value && !isAgence) {
-        result.push(value);
+        result.push({ name: field, value });
       }
     }
 
-    return result;
-  }, [record, visibleFields, metaFields, agenceValue]);
+    return finish();
+  }, [record, visibleFields, metaFields, agenceValue, fieldRange, boxNumber, boxField]);
 
   // ─── Données QR ────────────────────────────────────────────
   const qrData = useMemo(() => {
-    const lines: string[] = [`N° Boîte: ${boxNumber}`];
+    const qrLabel = (name: string, label: string) => {
+      const isAgence = [name, label].some((value) =>
+        /^(agence|nomagence|agencenom|nomdelagence)$/.test(
+          normalizeText(value).replace(/[^a-z0-9]/g, ""),
+        ),
+      );
+      return isAgence ? "Service Producteur" : label;
+    };
+    // Les lignes sources conservent les associations dossier / nature / date.
+    try {
+      const rows = JSON.parse(String(record.__sourceRows || "null"));
+      if (
+        Array.isArray(rows) &&
+        rows.length > 0 &&
+        rows.every((row) => row && typeof row === "object")
+      ) {
+        const keys = Array.from(
+          new Set<string>(rows.flatMap((row) => Object.keys(row))),
+        ).filter((key) => !key.startsWith("_") && key !== "metaValues");
+        const isBox = (key: string) =>
+          /^(?:(?:n|no|num|numero)(?:de)?(?:la)?boite|boite|boxnumber|box|numbox|nobox|numero)$/.test(
+            normalizeText(key).replace(/[^a-z0-9]/g, ""),
+          );
+        const fields = keys.filter((key) => !isBox(key));
+        const label = (key: string) =>
+          qrLabel(
+            key,
+            metaFields.find((field) => field.name === key)?.label || key,
+          );
+        const text = (row: any, key: string) => String(row[key] ?? "");
+        const detail = fields.filter(
+          (key) =>
+            /dossier|nature|date/.test(normalizeText(key)) ||
+            rows.some((row) => text(row, key) !== text(rows[0], key)),
+        );
+        const common = fields.filter((key) => !detail.includes(key));
+        return [
+          `N° Boîte : ${boxNumber}`,
+          ...common.map((key) => `${label(key)} : ${text(rows[0], key)}`),
+          "",
+          detail.map(label).join(" | "),
+          ...rows.map((row) => detail.map((key) => text(row, key)).join(" | ")),
+        ].join("\n\n");
+      }
+    } catch {
+      /* Les anciennes données restent lisibles dans leur format enregistré. */
+    }
+    const lines: string[] = [`• N° Boîte : ${boxNumber}`];
 
     const fieldsToUse =
       metaFields.length > 0
@@ -182,27 +258,34 @@ const LabelCard: React.FC<Props> = ({
         : allFields.map((f) => ({ name: f, label: f, field_type: "text" }));
 
     for (const field of fieldsToUse) {
+      // Le numéro est déjà présent en tête du QR, même si le fichier
+      // l'expose aussi comme champ sous un autre libellé.
+      const isBoxNumberField = [field.name, field.label].some((key) => {
+        const normalized = normalizeText(key).replace(/[^a-z0-9]/g, "");
+        return /^(?:(?:n|no|num|numero)(?:de)?(?:la)?boite|boite|boxnumber|box|numbox|nobox|numero)$/.test(
+          normalized,
+        );
+      });
+      if (isBoxNumberField) continue;
+
       const value = getFieldValue(field.name) || getFieldValue(field.label);
       if (value) {
-        lines.push(`${field.label}: ${value}`);
+        lines.push(
+          `• ${qrLabel(field.name, field.label)} : ${value.replace(/[\r\n]+/g, ", ")}`,
+        );
       }
     }
-    return lines.join(" | ");
+    return lines.join("\n\n");
   }, [record, allFields, boxNumber, metaFields]);
 
-  // Ensure QR payload isn't too long for the encoder (prevents "Data too long" errors)
-  const qrValue = useMemo(() => {
-    const MAX_QR_LENGTH = 800;
-    if (qrData.length > MAX_QR_LENGTH) {
-      console.warn(
-        `QR data length (${qrData.length}) exceeds ${MAX_QR_LENGTH} chars — truncating to avoid encoder error`,
-      );
-      return qrData.slice(0, MAX_QR_LENGTH) + "...";
-    }
-    return qrData;
-  }, [qrData]);
+  const qrContent = useMemo(
+    () => splitQrContent(qrData, boxNumber),
+    [qrData, boxNumber],
+  );
 
   const hasData = displayValues.length > 0;
+  const [showQrModal, setShowQrModal] = useState(false);
+
   const fieldCount = displayValues.length;
 
   // ─── Tailles ──────────────────────────────────────────────
@@ -212,12 +295,7 @@ const LabelCard: React.FC<Props> = ({
     return `${fontSize.valueSize}px`;
   };
 
-  const qrSize =
-    fieldCount <= 2
-      ? fontSize.qrSize + 35
-      : fieldCount <= 4
-        ? fontSize.qrSize + 20
-        : fontSize.qrSize;
+  const qrSize = fontSize.qrSize;
 
   const valueSize = getValueSize();
 
@@ -271,15 +349,22 @@ const LabelCard: React.FC<Props> = ({
       ) : (
         <>
           {/* Valeurs centrales avec espaces - Utilise valueSize */}
-          <div className="print-label-content flex-1  text-center">
-            {displayValues.map((value, index) => {
+          <div
+            className="print-label-content flex-1 text-center "
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: valueSpacing,
+            }}
+          >
+            {displayValues.map(({ name, value }, index) => {
               // Vérifier si la valeur est le numéro de boîte
-              const isBoxNumber = value === boxNumber;
+              const isBoxNumber = isNumberField(name);
               // If the value contains multiple dates (e.g., comma separated dd/mm/yyyy), group them
               const datePattern = /\d{2}\/\d{2}\/\d{4}/g;
               const found = String(value).match(datePattern);
 
-              if (found && found.length > 1) {
+              if (found && found.length > 1 && !value.includes(" à ")) {
                 const groups = formatProductionDates(found);
                 return (
                   <div
@@ -321,7 +406,9 @@ const LabelCard: React.FC<Props> = ({
                       lineHeight: "2.0",
                     }}
                   >
-                    {isBoxNumber ? `Boite N° ${value}` : value || "—"}
+                    {isBoxNumber
+                      ? `${displayBoxPrefix} ${value}`
+                      : value || "—"}
                   </span>
                 </div>
               );
@@ -329,21 +416,91 @@ const LabelCard: React.FC<Props> = ({
           </div>
 
           {/* QR Code en bas avec plus d'espace */}
-          <div className="print-label-qr  flex justify-center">
-            <div
-              className="bg-white mb-48 rounded shadow-sm border-border/30"
-              title={qrData}
-            >
-              <QRCodeSVG
-                value={qrValue}
-                size={qrSize}
-                fgColor="#1a1a2e"
-                bgColor="#ffffff"
-                level="M"
-                includeMargin={false}
-              />
+          {showQr && (
+            <div className="print-label-qr flex flex-col items-center w-full mb-48">
+              {qrContent.error ? (
+                <p
+                  role="alert"
+                  className="text-sm font-bold text-red-700 border border-red-700 p-2"
+                >
+                  {qrContent.error}
+                </p>
+              ) : (
+                <div className="flex flex-wrap justify-center gap-3 w-full">
+                  {qrContent.parts.map((value, index) => (
+                    <button
+                      type="button"
+                      key={index}
+                      className="bg-white shrink-0 flex flex-col items-center rounded cursor-pointer"
+                      style={{ width: qrSize }}
+                      title="Cliquer pour voir les détails de la boîte"
+                      onClick={() => setShowQrModal(true)}
+                    >
+                      <QRCodeSVG
+                        value={value}
+                        size={qrSize}
+                        style={{ width: qrSize, height: qrSize, flexShrink: 0 }}
+                        fgColor="#000000"
+                        bgColor="#ffffff"
+                        level="M"
+                        includeMargin={true}
+                      />
+                      {qrContent.parts.length === 2 && (
+                        <span className="text-xs font-bold text-black">
+                          QR {index + 1}/2
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {qrContent.parts.length === 2 && (
+                <p className="text-xs text-center mt-1">
+                  Scanner les deux QR dans l’ordre pour lire toutes les
+                  informations.
+                </p>
+              )}
             </div>
-          </div>
+          )}
+
+          {/* Modal interactif — non imprimé — affiche le tableau du QR */}
+          {showQr &&
+            showQrModal &&
+            createPortal(
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 print:hidden">
+                <div
+                  role="dialog"
+                  aria-modal="true"
+                  aria-label="Détails de la boîte"
+                  className="bg-white rounded shadow-lg max-w-5xl w-full max-h-[90vh] overflow-y-auto min-w-0 p-4"
+                >
+                  <div className="flex justify-between items-center mb-3">
+                    <h3 className="text-lg font-medium">
+                      Détails de la boîte {boxNumber}
+                    </h3>
+                    <button
+                      onClick={() => setShowQrModal(false)}
+                      className="px-2 py-1 bg-gray-100 rounded"
+                      aria-label="Fermer"
+                    >
+                      Fermer
+                    </button>
+                  </div>
+                  <div className="overflow-auto">
+                    <BoxDetailsTable
+                      boxNumber={boxNumber}
+                      record={record}
+                      fields={
+                        metaFields.length > 0
+                          ? metaFields
+                          : allFields.map((name) => ({ name, label: name }))
+                      }
+                    />
+                  </div>
+                </div>
+              </div>,
+              document.body,
+            )}
         </>
       )}
     </div>

@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useEffect } from "react";
 import * as XLSX from "xlsx";
+import { isBoxField } from '../utils/boxField';
 import FileUpload from "../components/FileUpload";
 import SettingsPanel from "../components/SettingsPanel";
 import PrintPreview from "../components/PrintPreview";
@@ -176,6 +177,8 @@ function cleanCellValue(header: string, value: unknown): string {
 }
 
 function detectBoxField(headers: string[], records: LabelRecord[]): string {
+  const explicitBoxField = headers.find(isBoxField);
+  if (explicitBoxField) return explicitBoxField;
   if (headers.length === 0) return "";
   if (records.length === 0) return headers[0];
 
@@ -250,6 +253,13 @@ function mergeRecords(records: LabelRecord[]): LabelRecord[] {
     }
   }
 
+  merged.__sourceRows = JSON.stringify(records.flatMap(record => {
+    try {
+      const rows = JSON.parse(String(record.__sourceRows || 'null'));
+      if (Array.isArray(rows)) return rows;
+    } catch { /* Conserver la ligne telle quelle si nécessaire. */ }
+    return [record];
+  }));
   return [merged];
 }
 
@@ -633,6 +643,9 @@ const Home: React.FC = () => {
               const record: any = {
                 numero_boite: item.numero_boite,
                 annee: item.annee,
+                __sourceRows: JSON.stringify(result.records.filter(row =>
+                  String(row[result.boxKey] ?? '').trim() === String(item.numero_boite).trim()
+                )),
               };
               
               if (item.metaValues) {

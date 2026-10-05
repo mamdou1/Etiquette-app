@@ -10,6 +10,14 @@ import {
 } from "../types";
 
 interface SettingsContextValue {
+  fieldRange: { enabled: boolean; from: string; to: string };
+  setFieldRange: (value: { enabled: boolean; from: string; to: string }) => void;
+  showQr: boolean;
+  setShowQr: (value: boolean) => void;
+  valueSpacing: number;
+  setValueSpacing: (value: number) => void;
+  boxPrefix: string;
+  setBoxPrefix: (value: string) => void;
   // États
   cols: ColumnCount;
   size: LabelSize;
@@ -19,6 +27,8 @@ interface SettingsContextValue {
   visibleFields: string[];
   filters: FieldFilters;
   labelsPerPage: LabelsPerPage;
+  labelLayout: 'auto' | 'row';
+  setLabelLayout: (layout: 'auto' | 'row') => void;
 
   // Actions
   setCols: (cols: ColumnCount) => void;
@@ -46,7 +56,7 @@ const SettingsContext = createContext<SettingsContextValue | undefined>(
 const DEFAULT_FONT_SIZE: FontSize = {
   labelSize: 14,
   valueSize: 18,
-  qrSize: 50,
+  qrSize: 220,
   agenceSize: 32,
 };
 
@@ -68,6 +78,11 @@ export const SettingsProvider: React.FC<{ children: ReactNode }> = ({
   const [visibleFields, setVisibleFields] = useState<string[]>([]);
   const [filters, setFilters] = useState<FieldFilters>({});
   const [labelsPerPage, setLabelsPerPage] = useState<LabelsPerPage>(2);
+  const [labelLayout, setLabelLayout] = useState<'auto' | 'row'>('auto');
+  const [showQr, setShowQr] = useState(true);
+  const [valueSpacing, setValueSpacing] = useState(0);
+  const [boxPrefix, setBoxPrefix] = useState('Boîte N°');
+  const [fieldRange, setFieldRange] = useState({ enabled: false, from: '', to: '' });
 
   const updateFilter = (
     field: string,
@@ -103,6 +118,10 @@ export const SettingsProvider: React.FC<{ children: ReactNode }> = ({
   return (
     <SettingsContext.Provider
       value={{
+        fieldRange, setFieldRange,
+        showQr, setShowQr,
+        valueSpacing, setValueSpacing,
+        boxPrefix, setBoxPrefix,
         cols,
         size,
         fontSize,
@@ -111,6 +130,8 @@ export const SettingsProvider: React.FC<{ children: ReactNode }> = ({
         visibleFields,
         filters,
         labelsPerPage,
+        labelLayout,
+        setLabelLayout,
         setCols,
         setSize,
         setFontSize,

@@ -1,5 +1,6 @@
 import React from "react";
 import LabelCard from "./LabelCard";
+import { getLabelLayout } from '../utils/labelLayout';
 import { BoxGroup, LabelSize, ColumnCount, LabelsPerPage } from "../types";
 import { useSettings } from "../contexts/SettingsContext";
 
@@ -32,9 +33,10 @@ const PrintPreview: React.FC<Props> = ({
   metaFields = [],
   selectedYears = [],
 }) => {
-  const { fontSize, fontStyle, labelsPerPage: contextLabelsPerPage, filters } = useSettings();
+  const { fontSize, fontStyle, labelsPerPage: contextLabelsPerPage, labelLayout, filters } = useSettings();
 
   const itemsPerPage = contextLabelsPerPage || propLabelsPerPage || 2;
+  const gridLayout = getLabelLayout(itemsPerPage, labelLayout);
 
   // Aplatir tous les records avec l'année
   const allRecords: FlatRecord[] = boxes.flatMap((box) =>
@@ -85,7 +87,7 @@ const PrintPreview: React.FC<Props> = ({
   };
 
   const getGridClass = () => {
-    return `label-grid-${itemsPerPage}`;
+    return itemsPerPage >= 4 ? 'label-grid-compact' : '';
   };
 
   function extractYearFromBoxNumber(boxNumber: string): string | null {
@@ -151,7 +153,12 @@ const PrintPreview: React.FC<Props> = ({
           >
             {/* ✅ Plus de pageYear ici — c'était la source du bug page 1 */}
 
-            <div className={`label-grid ${getGridClass()}`}>
+            <div className={`label-grid ${getGridClass()}`} style={{
+              '--label-columns': gridLayout.columns,
+              '--label-rows': gridLayout.rows,
+              '--compact-agency-size': `${Math.max(8, fontSize.agenceSize * 0.5)}px`,
+              '--compact-value-size': `${Math.max(7, fontSize.valueSize * 0.65)}px`,
+            } as React.CSSProperties}>
               {pageRecords.map((item, idx) => (
                 <div
                   key={`${item.boxNumber}-${idx}-${pageIndex}`}
@@ -163,6 +170,7 @@ const PrintPreview: React.FC<Props> = ({
                     visibleFields={visibleFields}
                     size={size}
                     boxNumber={String(item.boxNumber)}
+                    boxField={boxField}
                     isCaissier={
                       String(item.record.caissiers || "").trim() !== "" ||
                       String(item.record.caissier || "").trim() !== ""
