@@ -1,3 +1,4 @@
+import { StoredLabel } from '../services/labelService';
 import React from "react";
 import LabelCard from "./LabelCard";
 import { getLabelLayout } from '../utils/labelLayout';
@@ -5,6 +6,7 @@ import { BoxGroup, LabelSize, ColumnCount, LabelsPerPage } from "../types";
 import { useSettings } from "../contexts/SettingsContext";
 
 interface Props {
+  onLabelSaved?: (label: StoredLabel) => void;
   boxes: BoxGroup[];
   fields: string[];
   visibleFields: string[];
@@ -24,6 +26,7 @@ type FlatRecord = {
 
 const PrintPreview: React.FC<Props> = ({
   boxes,
+  onLabelSaved,
   fields,
   visibleFields,
   cols,
@@ -64,7 +67,8 @@ const PrintPreview: React.FC<Props> = ({
   });
 
   const recordsToDisplay = allRecords.filter(item =>
-    (selectedYears.length === 0 || selectedYears.includes(item.year || '')) &&
+    (selectedYears.length === 0 || selectedYears.includes(item.year || '') ||
+      Object.entries(item.record).some(([key, value]) => /ann[eé]e|year/i.test(key) && String(value).split(/[,;|]/).some(year => selectedYears.includes(year.trim())))) &&
     recordMatchesFilters(item.record)
   );
 
@@ -165,6 +169,7 @@ const PrintPreview: React.FC<Props> = ({
                   className="label-grid-cell"
                 >
                   <LabelCard
+                    onLabelSaved={onLabelSaved}
                     record={item.record}
                     allFields={fields}
                     visibleFields={visibleFields}

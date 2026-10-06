@@ -1,6 +1,8 @@
 const XLSX = require("xlsx");
 
-const DATE_HEADER_RE = /\b(date|jour|production|expiration|echeance)\b/i;
+// ✅ "production" RETIRÉ : "Annee de production" ne doit PAS être traité comme une date
+// ✅ "annee" sera exclu explicitement dans isDateField()
+const DATE_HEADER_RE = /\b(date|jour|expiration|echeance)\b/i;
 
 function normalizeHeader(header) {
   return String(header)
@@ -9,8 +11,16 @@ function normalizeHeader(header) {
     .toLowerCase();
 }
 
+// ✅ CORRIGÉ : exclut les colonnes d'année de la détection "date"
 function isDateField(header) {
-  return DATE_HEADER_RE.test(normalizeHeader(header));
+  const normalized = normalizeHeader(header);
+
+  // ✅ Une colonne "année" n'est JAMAIS une date complète
+  if (normalized.includes("anne") || normalized.includes("year")) {
+    return false;
+  }
+
+  return DATE_HEADER_RE.test(normalized);
 }
 
 function formatExcelDate(value) {
@@ -38,7 +48,35 @@ function cleanCellValue(header, value) {
   }
 
   const rawValue = String(value).trim();
-  if (isDateField(header) && (typeof value === "number" || /^\d+(\.\d+)?$/.test(rawValue))) {
+
+  // ✅ Nettoyage spécial pour les colonnes d'année
+  const normalizedHeader = normalizeHeader(header);
+  if (normalizedHeader.includes("anne") || normalizedHeader.includes("year")) {
+    // Si c'est un nombre entier entre 1900 et 2100, c'est une année → garder tel quel
+    if (typeof value === "number" && value >= 1900 && value <= 2100) {
+      return String(value);
+    }
+    // Si c'est un nombre hors plage, c'est probablement une date Excel mal convertie
+    if (typeof value === "number") {
+      // Vérifier si c'est un serial date (ex: 2015 = 07/07/1905)
+      const parsed = XLSX.SSF.parse_date_code(value);
+      if (parsed && parsed.y < 2000) {
+        // Cas spécial : année aberrante, probablement la vraie année était le nombre lui-même
+        // ex: 2015 → parsed.y = 1905 → on retourne "2015"
+        if (value >= 1900 && value <= 2100) {
+          return String(value);
+        }
+        return "";
+      }
+    }
+    return rawValue;
+  }
+
+  // ✅ Détection date normale (uniquement pour les vraies colonnes de date)
+  if (
+    isDateField(header) &&
+    (typeof value === "number" || /^\d+(\.\d+)?$/.test(rawValue))
+  ) {
     return formatExcelDate(value);
   }
 
@@ -82,7 +120,6 @@ function parseSheet(worksheet, sheetName) {
     return { data: [], fields: [], year: extractYearFromSheetName(sheetName) };
   }
 
-  // Trouver la ligne des en-têtes
   const headerRowIndex = detectHeaders(allRows);
 
   const headers = allRows[headerRowIndex]
@@ -108,13 +145,20 @@ function parseSheet(worksheet, sheetName) {
   return {
     data,
     fields: headers,
-    year: extractYearFromSheetName(sheetName)
+    year: extractYearFromSheetName(sheetName),
   };
 }
 
 // ✅ Fonction principale - lit TOUTES les feuilles
 function parseExcel(filePath) {
-  const workbook = XLSX.readFile(filePath);
+  // ✅ CORRIGÉ : empêche la conversion automatique en Date
+  const workbook = XLSX.readFile(filePath, {
+    cellDates: false, // ✅ CRUCIAL : "2015" reste un nombre
+    raw: true, // ✅ Garde les valeurs brutes
+    cellNF: false,
+    cellText: false,
+  });
+
   const sheetNames = workbook.SheetNames;
 
   if (!sheetNames.length) {
@@ -128,20 +172,19 @@ function parseExcel(filePath) {
   for (const sheetName of sheetNames) {
     const worksheet = workbook.Sheets[sheetName];
     const result = parseSheet(worksheet, sheetName);
-    
+
     if (result.data.length > 0) {
-      // Ajouter l'année à chaque enregistrement si elle n'existe pas déjà
-      const dataWithYear = result.data.map(record => ({
+      const dataWithYear = result.data.map((record) => ({
         ...record,
-        _sheetYear: result.year || extractYearFromSheetName(sheetName) || '',
-        _sheetName: sheetName
+        _sheetYear: result.year || extractYearFromSheetName(sheetName) || "",
+        _sheetName: sheetName,
       }));
-      
+
       allData.push(...dataWithYear);
-      result.fields.forEach(f => allFields.add(f));
-      
-      // Stocker par année
-      const year = result.year || extractYearFromSheetName(sheetName) || 'Sans année';
+      result.fields.forEach((f) => allFields.add(f));
+
+      const year =
+        result.year || extractYearFromSheetName(sheetName) || "Sans année";
       if (!yearData[year]) {
         yearData[year] = [];
       }
@@ -150,14 +193,15 @@ function parseExcel(filePath) {
   }
 
   if (allData.length === 0) {
-    throw new Error("Le fichier Excel ne contient pas de données valides dans aucune feuille");
+    throw new Error(
+      "Le fichier Excel ne contient pas de données valides dans aucune feuille",
+    );
   }
 
-  // Déterminer les champs communs
   const fields = Array.from(allFields);
-
-  // Ajouter les années disponibles
-  const availableYears = Object.keys(yearData).filter(y => y !== 'Sans année').sort();
+  const availableYears = Object.keys(yearData)
+    .filter((y) => y !== "Sans année")
+    .sort();
 
   return {
     data: allData,
@@ -165,7 +209,7 @@ function parseExcel(filePath) {
     availableYears: availableYears,
     yearData: yearData,
     totalRows: allData.length,
-    sheets: sheetNames
+    sheets: sheetNames,
   };
 }
 

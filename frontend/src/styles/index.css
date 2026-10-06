@@ -80,11 +80,11 @@ body {
 
 /* Les petites étiquettes utilisent des espacements compacts. */
 .label-grid-compact .label-card { width: 100%; }
-.label-grid-compact .label-card > div:first-child {
+.label-grid-compact .label-card > .label-agency {
   margin-bottom: 4px !important;
   padding-bottom: 4px !important;
 }
-.label-grid-compact .label-card > div:first-child span {
+.label-grid-compact .label-card > .label-agency span {
   font-size: var(--compact-agency-size, 14px) !important;
   line-height: 1.2 !important;
   letter-spacing: normal !important;

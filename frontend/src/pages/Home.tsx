@@ -1,3 +1,4 @@
+import { labelToRecord, StoredLabel } from '../services/labelService';
 import React, { useMemo, useState, useEffect } from "react";
 import * as XLSX from "xlsx";
 import { isBoxField } from '../utils/boxField';
@@ -32,7 +33,9 @@ function normalizeText(value: unknown) {
 }
 
 function isDateField(field: string) {
-  return DATE_FIELD_RE.test(normalizeText(field));
+  const normalized = normalizeText(field);
+  if (/\b(annee|annees|year|years)\b/.test(normalized)) return false;
+  return DATE_FIELD_RE.test(normalized);
 }
 
 function parseRecordDate(value: unknown) {
@@ -630,7 +633,9 @@ const Home: React.FC = () => {
             const metaFields = response.metaFields || [];
             const metaFieldNames = metaFields.map((mf: { name: string }) => mf.name);
 
-            const allFields = ["numero_boite", ...metaFieldNames];
+            const allFields: string[] = response.fields || ["numero_boite", ...metaFieldNames];
+            setFields(allFields);
+            setBoxField(response.boxField || 'numero_boite');
             setVisibleFields(allFields);
             setDetectedFields(allFields);
 
@@ -639,27 +644,9 @@ const Home: React.FC = () => {
               setSelectedYears(response.availableYears);
             }
 
-            const enrichedBoxes = response.enriched.map((item: any) => {
-              const record: any = {
-                numero_boite: item.numero_boite,
-                annee: item.annee,
-                __sourceRows: JSON.stringify(result.records.filter(row =>
-                  String(row[result.boxKey] ?? '').trim() === String(item.numero_boite).trim()
-                )),
-              };
-              
-              if (item.metaValues) {
-                Object.keys(item.metaValues).forEach((key: string) => {
-                  record[key] = item.metaValues[key];
-                });
-              }
-              
-              return {
-                boxNumber: item.numero_boite,
-                records: [record],
-                year: item.annee,
-              };
-            });
+            const enrichedBoxes = response.enriched.map((item: StoredLabel) => ({
+              boxNumber: item.numero_boite, records: [labelToRecord(item)], year: item.annee,
+            }));
 
             // ✅ AFFICHER LES ÉTIQUETTES
             setBoxes(enrichedBoxes);
@@ -694,28 +681,7 @@ const Home: React.FC = () => {
             console.log("✅ Étiquettes affichées avec succès !");
             
           } else {
-            // ✅ Même si enriched est vide, on peut afficher les données du parsing
-            console.warn("⚠️ Aucune donnée enrichie, utilisation des données du parsing");
-            setBoxes(result.boxes);
-            setUploadSuccess(true);
-            setRawRecords(result.records);
-            setVisibleFields(result.fields);
-            setDetectedFields(result.fields);
-            
-            setImportStats({
-              saved: result.boxes.length || 0,
-              doublons: 0,
-              agences: 1,
-              nouvellesAgences: 0,
-              types: 1,
-              nouveauxTypes: 0,
-              relations: result.boxes.length || 0,
-              isReimport: false,
-              message: `${result.boxes.length} boîtes importées avec succès`,
-            });
-            
-            setError("");
-            console.log("✅ Étiquettes affichées avec les données du parsing");
+            throw new Error("Le serveur n’a confirmé aucune étiquette enregistrée. Vérifiez l’import.");
           }
         } else {
           console.warn("⚠️ Réponse inattendue du backend:", response);
@@ -745,6 +711,15 @@ const Home: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleLabelSaved = (label: StoredLabel) => {
+    const updated = labelToRecord(label);
+    setRawRecords(previous => previous.map(record => String(record.__labelId) === String(label.id) ? updated : record));
+    setBoxes(previous => previous.map(box => box.records.some(record => String(record.__labelId) === String(label.id))
+      ? { ...box, boxNumber: label.numero_boite, year: label.annee, records: [updated] } : box));
+    setAvailableYearsFromFile([]);
+    setSelectedYears([]);
   };
 
   const reset = () => {
@@ -1025,6 +1000,7 @@ const Home: React.FC = () => {
             onReset={reset}
           />
           <PrintPreview
+            onLabelSaved={handleLabelSaved}
             boxes={filteredBoxes}
             fields={fields}
             visibleFields={visibleFields}

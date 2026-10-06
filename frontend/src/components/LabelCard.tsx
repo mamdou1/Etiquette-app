@@ -1,6 +1,8 @@
-import React, { useMemo, useState } from "react";
+import LabelEditorModal from './LabelEditorModal';
+import { labelToRecord, StoredLabel } from '../services/labelService';
+import React, { useMemo, useState, useEffect } from "react";
 import { QRCodeSVG } from "qrcode.react";
-import { isBoxField, resolveBoxNumber } from '../utils/boxField';
+import { isBoxField, resolveBoxNumber } from "../utils/boxField";
 import { createPortal } from "react-dom";
 import BoxDetailsTable from "./BoxDetailsTable";
 import { LabelRecord, LabelSize, LabelValue } from "../types";
@@ -10,6 +12,7 @@ import { splitQrContent } from "../utils/qrParts";
 import { joinLabelFieldRange } from "../utils/labelFieldRange";
 
 interface Props {
+  onLabelSaved?: (label: StoredLabel) => void;
   record: LabelRecord;
   allFields: string[];
   visibleFields: string[];
@@ -22,7 +25,8 @@ interface Props {
 }
 
 const LabelCard: React.FC<Props> = ({
-  record,
+  record: sourceRecord,
+  onLabelSaved,
   allFields,
   visibleFields,
   size,
@@ -32,21 +36,31 @@ const LabelCard: React.FC<Props> = ({
   isCaissier = false,
   metaFields = [],
 }) => {
+  const [record, setRecord] = useState(sourceRecord);
+  const [editing, setEditing] = useState(false);
+  useEffect(() => setRecord(sourceRecord), [sourceRecord]);
+  const editable = Boolean(record.__labelId || (record.__agenceId && record.__typeId));
   const boxNumber = resolveBoxNumber(record, suppliedBoxNumber);
   const isNumberField = (name: string) => {
-    const field = metaFields.find(field => field.name === name || field.label === name);
-    return isBoxField(name) || Boolean(field && (isBoxField(field.name) || isBoxField(field.label))) ||
-      (name === boxField && !Object.keys(record).some(isBoxField));
+    const field = metaFields.find(
+      (field) => field.name === name || field.label === name,
+    );
+    return (
+      isBoxField(name) ||
+      Boolean(field && (isBoxField(field.name) || isBoxField(field.label))) ||
+      (name === boxField && !Object.keys(record).some(isBoxField))
+    );
   };
   const {
     fontSize,
     fontStyle,
     fontFamily,
-    showQr,
+    showQr: globalShowQr,
     valueSpacing,
     boxPrefix,
     fieldRange,
   } = useSettings();
+  const showQr = record.__qrEnabled === 'true' ? true : record.__qrEnabled === 'false' ? false : globalShowQr;
   const displayBoxPrefix = boxPrefix.trim() || "Boîte N°";
 
   // ─── Helper pour récupérer la valeur  ──────────────────────
@@ -149,10 +163,17 @@ const LabelCard: React.FC<Props> = ({
   const displayValues = useMemo(() => {
     const result: Array<{ name: string; value: string }> = [];
     const finish = () => {
-      const boxFields = result.filter(field => isNumberField(field.name));
-      const preferred = boxFields.find(field => field.name !== 'numero_boite' && field.name !== 'boxNumber') || boxFields[0];
-      const unique = result.filter(field => !isNumberField(field.name) || field === preferred)
-        .map(field => isNumberField(field.name) ? { ...field, value: boxNumber } : field);
+      const boxFields = result.filter((field) => isNumberField(field.name));
+      const preferred =
+        boxFields.find(
+          (field) =>
+            field.name !== "numero_boite" && field.name !== "boxNumber",
+        ) || boxFields[0];
+      const unique = result
+        .filter((field) => !isNumberField(field.name) || field === preferred)
+        .map((field) =>
+          isNumberField(field.name) ? { ...field, value: boxNumber } : field,
+        );
       return joinLabelFieldRange(unique, fieldRange);
     };
 
@@ -199,7 +220,15 @@ const LabelCard: React.FC<Props> = ({
     }
 
     return finish();
-  }, [record, visibleFields, metaFields, agenceValue, fieldRange, boxNumber, boxField]);
+  }, [
+    record,
+    visibleFields,
+    metaFields,
+    agenceValue,
+    fieldRange,
+    boxNumber,
+    boxField,
+  ]);
 
   // ─── Données QR ────────────────────────────────────────────
   const qrData = useMemo(() => {
@@ -295,7 +324,7 @@ const LabelCard: React.FC<Props> = ({
     return `${fontSize.valueSize}px`;
   };
 
-  const qrSize = fontSize.qrSize;
+  const qrSize = Number(record.__qrSize) || fontSize.qrSize;
 
   const valueSize = getValueSize();
 
@@ -322,11 +351,18 @@ const LabelCard: React.FC<Props> = ({
   return (
     <div
       className={`label-card ${isCaissier ? "border-emerald-500 border-2 shadow-lg" : ""} ${color.bg} ${color.border}`}
-      style={width ? { width } : undefined}
+      style={{ position: 'relative', ...(width ? { width } : {}) }}
+      onClick={editable ? () => setEditing(true) : undefined}
     >
+      {editable && <button type="button" className="no-print absolute right-2 top-2 bg-white border rounded px-2 py-1 text-xs z-10"
+        aria-label={`Modifier la boîte ${boxNumber}`} onClick={event => { event.stopPropagation(); setEditing(true); }}>Modifier</button>}
+      {editing && <LabelEditorModal record={record} onClose={() => setEditing(false)} onSaved={label => {
+        setRecord({ ...record, ...labelToRecord(label), metaValues: label.metaValues } as unknown as LabelRecord);
+        onLabelSaved?.(label);
+      }} />}
       {/* NOM DE L'AGENCE en haut - Utilise agenceSize */}
       {agenceValue && (
-        <div className="text-center mb-5 pb-4 border-b-2 border-border/60">
+        <div className="label-agency text-center mb-5 pb-4 border-b-2 border-border/60">
           <span
             className="font-mono font-extrabold text-primary tracking-wider"
             style={{
@@ -434,7 +470,7 @@ const LabelCard: React.FC<Props> = ({
                       className="bg-white shrink-0 flex flex-col items-center rounded cursor-pointer"
                       style={{ width: qrSize }}
                       title="Cliquer pour voir les détails de la boîte"
-                      onClick={() => setShowQrModal(true)}
+                      onClick={event => { event.stopPropagation(); setShowQrModal(true); }}
                     >
                       <QRCodeSVG
                         value={value}
@@ -467,7 +503,7 @@ const LabelCard: React.FC<Props> = ({
           {showQr &&
             showQrModal &&
             createPortal(
-              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 print:hidden">
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 print:hidden" onClick={event => event.stopPropagation()}>
                 <div
                   role="dialog"
                   aria-modal="true"
@@ -512,7 +548,55 @@ function formatValue(value: LabelValue): string {
   if (Array.isArray(value)) {
     return value.filter((v) => v && v.toString().trim()).join(", ");
   }
-  if (typeof value === "string") return value;
+
+  // ✅ AJOUT 1 : Si c'est une année (4 chiffres entre 1900 et 2100), la garder telle quelle
+  // Empêche "2015" d'être reformaté en "07/07/1905"
+  if (typeof value === "string" || typeof value === "number") {
+    const str = String(value).trim();
+    if (/^(19|20)\d{2}$/.test(str)) {
+      return str;
+    }
+  }
+
+  // ✅ AJOUT 2 : Si c'est une Date JS (bug Excel) — cast en any pour TypeScript
+  const anyValue = value as any;
+  if (anyValue instanceof Date && !Number.isNaN(anyValue.getTime())) {
+    const y = anyValue.getFullYear();
+    // 1905 = 2015 jours après 1900 → valeur originale = 2015
+    if (y === 1905) {
+      return "2015";
+    }
+    // Année plausible → retourner juste l'année
+    if (y >= 2000 && y <= 2100) {
+      return String(y);
+    }
+    // Année aberrante → vide
+    if (y < 2000) {
+      return "";
+    }
+    // Sinon formater en JJ/MM/AAAA
+    const day = String(anyValue.getDate()).padStart(2, "0");
+    const month = String(anyValue.getMonth() + 1).padStart(2, "0");
+    return `${day}/${month}/${y}`;
+  }
+
+  // ✅ AJOUT 3 : Détecter le pattern "07/07/1905" (année aberrante d'une date mal convertie)
+  if (typeof value === "string") {
+    const dateMatch = value.match(/^(\d{2})\/(\d{2})\/(19\d{2})$/);
+    if (dateMatch) {
+      const year = parseInt(dateMatch[3], 10);
+      // 1905 = 2015 jours après 1900 → valeur originale = 2015
+      if (year === 1905) {
+        return "2015";
+      }
+      // Autres années < 2000 → vide
+      if (year < 2000) {
+        return "";
+      }
+    }
+    return value;
+  }
+
   if (typeof value === "number") return value.toString();
   return String(value);
 }

@@ -75,11 +75,7 @@ const handleUpload = async (req, res) => {
     result.sheets = sheets;
     result.totalRows = totalRows;
 
-    const allFields = [...fields];
-    const newFields = Object.keys(result.enriched[0] || {}).filter(
-      (key) => !fields.includes(key)
-    );
-    allFields.push(...newFields);
+    const allFields = [...new Set(result.enriched.flatMap(label => Object.keys(label.metaValues)))];
 
     fs.unlink(filePath, (err) => {
       if (err) console.warn("⚠️ Impossible de supprimer le fichier temporaire :", err.message);
@@ -97,6 +93,8 @@ const handleUpload = async (req, res) => {
       metaFields: result.metaFields || [],
       fields: allFields,
       data: result.enriched || [],
+      enriched: result.enriched || [],
+      boxField: result.boxField,
       agenceTrouvees: result.agenceTrouvees || [],
       typesTrouves: result.typesTrouves || [],
       champsDetectes: Object.keys(data[0] || {}),

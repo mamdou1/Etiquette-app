@@ -1,9 +1,11 @@
+import { StoredLabel } from '../services/labelService';
 import React from 'react';
 import PrintPreview from './PrintPreview';
 import SettingsPanel from './SettingsPanel';
 import { useSettings } from '../contexts/SettingsContext';
 
 interface PrintModalProps {
+  onLabelSaved?: (label: StoredLabel) => void;
   isOpen: boolean;
   onClose: () => void;
   boxes: Array<{ boxNumber: string; records: any[] }>;
@@ -25,6 +27,7 @@ const PrintModal: React.FC<PrintModalProps> = ({
   isOpen,
   onClose,
   boxes,
+  onLabelSaved,
   fields: propFields,
   title,
   filename = 'Archives',
@@ -118,6 +121,7 @@ const PrintModal: React.FC<PrintModalProps> = ({
             <div className="flex-1 overflow-y-auto p-6 print:p-0 print:overflow-visible">
               {boxes.length > 0 ? (
                 <PrintPreview
+                    onLabelSaved={onLabelSaved}
                   boxes={boxes}
                   fields={finalFields}
                   visibleFields={visibleFields.length > 0 ? visibleFields : finalFields}

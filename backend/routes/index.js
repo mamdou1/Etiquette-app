@@ -15,6 +15,7 @@ const { requireAdmin } = require("../middleware/authMiddleware");
 const router = express.Router();
 
 router.use("/auth", authRoutes);
+router.use('/labels', requireAuth, require('./labelRoutes'));
 router.use("/users", requireAuth, requireAdmin, userRoutes);
 router.use("/agences", requireAuth, agenceRoutes);
 router.use("/archives", requireAuth, archiveRoutes);

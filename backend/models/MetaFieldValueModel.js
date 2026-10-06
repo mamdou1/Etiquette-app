@@ -330,40 +330,11 @@ const MetaFieldValueModel = {
   },
 
   // ─── Supprimer toutes les valeurs d'une boîte ──────────────
-  deleteByBoite: async (agenceId, typeDocumentId, numeroBoite) => {
-    const [result] = await pool.execute(
-      'DELETE FROM meta_field_values WHERE agence_id = ? AND type_document_id = ? AND numero_boite = ?',
-      [agenceId, typeDocumentId, numeroBoite]
-    );
-    return result.affectedRows > 0;
-  },
-
-  // ─── Supprimer toutes les valeurs d'une agence ─────────────
-  deleteByAgence: async (agenceId) => {
-    const [result] = await pool.execute(
-      'DELETE FROM meta_field_values WHERE agence_id = ?',
-      [agenceId]
-    );
-    return result.affectedRows > 0;
-  },
-
-  // ─── Supprimer toutes les valeurs d'un type ────────────────
-  deleteByType: async (typeDocumentId) => {
-    const [result] = await pool.execute(
-      'DELETE FROM meta_field_values WHERE type_document_id = ?',
-      [typeDocumentId]
-    );
-    return result.affectedRows > 0;
-  },
-
-  // ─── Supprimer toutes les valeurs d'une année ──────────────
-  deleteByAnnee: async (annee) => {
-    const [result] = await pool.execute(
-      'DELETE FROM meta_field_values WHERE annee = ?',
-      [annee]
-    );
-    return result.affectedRows > 0;
-  },
+  deleteByBoite: (agenceId, typeDocumentId, numeroBoite) =>
+    require('../services/labelService').deleteValues('agence_id = ? AND type_document_id = ? AND numero_boite = ?', [agenceId, typeDocumentId, numeroBoite]),
+  deleteByAgence: agenceId => require('../services/labelService').deleteValues('agence_id = ?', [agenceId]),
+  deleteByType: typeId => require('../services/labelService').deleteValues('type_document_id = ?', [typeId]),
+  deleteByAnnee: annee => require('../services/labelService').deleteValues('annee = ?', [annee]),
 
   // ─── Compteur par niveau ─────────────────────────────────────
   count: async (params) => {

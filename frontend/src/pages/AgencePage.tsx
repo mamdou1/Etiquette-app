@@ -1,3 +1,5 @@
+import BoxRangeGenerator from '../components/BoxRangeGenerator';
+import { listLabels, labelToRecord, StoredLabel } from '../services/labelService';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import AgenceManager from '../components/AgenceManager';
 import HierarchyTree from '../components/HierarchyTree';
@@ -28,7 +30,7 @@ const SearchIcon = () => (
 );
 
 const AgencePage: React.FC = () => {
-  const { setVisibleFields, visibleFields } = useSettings();
+  const { setVisibleFields, visibleFields, setFilters } = useSettings();
 
   const [agences, setAgences] = useState<Agence[]>([]);
   const [selectedAgenceId, setSelectedAgenceId] = useState<number | null>(null);
@@ -183,12 +185,14 @@ const AgencePage: React.FC = () => {
       // La hiérarchie ne sert qu'à naviguer. Pour l'impression, relire les
       // colonnes Excel réellement enregistrées dans meta_field_values.
       const response = await getBoitesByAgence(selectedAgenceId);
-      const selectedKeys = new Set(boxes.map(box => `${box.boxNumber}|${box.year || ''}`));
+      const labels = await listLabels(selectedAgenceId);
+      const selectedKeys = new Set(boxes.flatMap(box => box.records.map(record => `${record.__typeId || record.type_document}|${box.boxNumber}|${box.year || 'Sans année'}`)));
       const recordsByBox = new Map<string, any>();
 
       (response.data || []).forEach((row: any) => {
-        const key = `${row.numero_boite}|${row.annee || ''}`;
-        if (!selectedKeys.has(key)) return;
+        const key = `${row.type_document_id}|${row.numero_boite}`;
+        const selectionSuffix = `${row.numero_boite}|${row.annee || 'Sans année'}`;
+        if (!selectedKeys.has(`${row.type_document_id}|${selectionSuffix}`) && !selectedKeys.has(`${row.type_nom}|${selectionSuffix}`)) return;
 
         if (!recordsByBox.has(key)) {
           recordsByBox.set(key, {
@@ -198,6 +202,8 @@ const AgencePage: React.FC = () => {
             annee: row.annee || '',
             metaValues: {},
             __metaFields: [],
+            __agenceId: String(selectedAgenceId),
+            __typeId: String(row.type_document_id),
           });
         }
 
@@ -212,6 +218,10 @@ const AgencePage: React.FC = () => {
         });
       });
 
+      recordsByBox.forEach(record => {
+        const label = labels.find(label => label.numero_boite === String(record.numero_boite) && String(label.type_document_id) === record.__typeId);
+        if (label) Object.assign(record, labelToRecord(label), { metaValues: label.metaValues });
+      });
       const storedBoxes = Array.from(recordsByBox.values()).map((record: any) => ({
         boxNumber: record.numero_boite,
         records: [record],
@@ -233,7 +243,7 @@ const AgencePage: React.FC = () => {
     // donc être tirés des boîtes sélectionnées, et non du premier type chargé.
     const storedFields = [...new Set(boxes.flatMap(box =>
       box.records.flatMap(record => Object.keys(record).filter(key =>
-        !['metaValues', '__metaFields', 'numero_boite', 'agence_nom', 'type_document', 'caissiers', 'annee'].includes(key)
+        !key.startsWith('_') && !['metaValues', '__metaFields', 'numero_boite', 'agence_nom', 'type_document', 'caissiers', 'annee'].includes(key)
       ))
     ))];
     const fieldsToUse = ['numero_boite', ...storedFields];
@@ -262,6 +272,18 @@ const AgencePage: React.FC = () => {
       typeId,
       typeNom,
     });
+  };
+
+  const handleLabelSaved = (label: StoredLabel) => {
+    setPrintModal(previous => ({ ...previous, boxes: previous.boxes.map(box => {
+      const matches = box.records.some(record => String(record.__labelId) === String(label.id) ||
+        (!record.__labelId && record.__typeId === String(label.type_document_id) && record.numero_boite === (label.previousNumeroBoite || label.numero_boite)));
+      return matches ? { ...box, boxNumber: label.numero_boite, year: label.annee,
+        records: box.records.map(record => ({ ...record, ...labelToRecord(label), metaValues: label.metaValues })) } : box;
+    }) }));
+    setSelectedPrintYears([]);
+    if (selectedAgenceId) loadHierarchy(selectedAgenceId);
+    setToast({ message: 'Étiquette enregistrée en base', type: 'success' });
   };
 
   const handlePrint = () => {
@@ -329,6 +351,13 @@ const AgencePage: React.FC = () => {
         </div>
       </div>
 
+      {hierarchy && !loading && hierarchy.agence.id === selectedAgenceId && (
+        <BoxRangeGenerator key={selectedAgenceId} hierarchy={hierarchy} onGenerate={async (boxes, title, level) => {
+          setFilters({});
+          await handlePrintBoxes(boxes, title, level);
+        }} />
+      )}
+
       {filteredHierarchy && !loading && (
         <div className="bg-white rounded-lg shadow-sm border border-border p-6">
           <HierarchyTree
@@ -365,6 +394,7 @@ const AgencePage: React.FC = () => {
       </div>
 
       <PrintModal
+        onLabelSaved={handleLabelSaved}
         isOpen={printModal.isOpen}
         onClose={handleReset}
         boxes={printModal.boxes}
