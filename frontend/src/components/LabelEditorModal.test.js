@@ -14,7 +14,7 @@ jest.mock('../services/labelService', () => ({
 jest.mock('qrcode.react', () => ({ QRCodeSVG: props => <svg data-testid="qr" data-value={props.value} width={props.size} /> }));
 jest.mock('../contexts/SettingsContext', () => ({ useSettings: () => ({
   fontSize: { valueSize: 16, agenceSize: 20, qrSize: 220 }, fontStyle: { valueWeight: 'bold' },
-  fontFamily: 'sans-serif', showQr: true, valueSpacing: 0, boxPrefix: 'Boîte N°',
+  fontFamily: 'sans-serif', showQr: true, valueSpacing: 0, boxPrefix: 'N° Chrono',
   fieldRange: { enabled: false, from: '', to: '' },
 }) }));
 
@@ -83,4 +83,16 @@ test('label QR uses stored size, visibility and corrected dossier values', async
   act(() => Simulate.click(container.querySelector('button[aria-label="Modifier la boîte 161"]')));
   await act(async () => {});
   expect(document.querySelector('[role=dialog]')).not.toBeNull();
+});
+
+
+test('chrono receives the chosen prefix; series numbers remain ordinary values', async () => {
+  const record = { numero_boite: '306800', 'N° chrono': '79', 'N° début de série': '306800', 'N° fin de série': '307199' };
+  const fields = ['N° début de série', 'N° fin de série', 'N° chrono', 'numero_boite'];
+  await render(<LabelCard record={record} allFields={fields} visibleFields={fields} size="md" boxNumber="306800" boxField="numero_boite" />);
+  expect(container.textContent).toContain('N° Chrono 79');
+  expect(container.textContent.match(/N° Chrono/g)).toHaveLength(1);
+  expect(container.textContent).not.toContain('N° Chrono 306800');
+  expect(container.textContent).toContain('307199');
+  expect(container.querySelector('[data-testid=qr]').getAttribute('data-value')).toContain('N° Boîte : 79');
 });

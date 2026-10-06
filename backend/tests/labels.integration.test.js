@@ -110,6 +110,14 @@ test('import, edit and reload labels against MySQL', async t => {
       assert.equal(result.enriched.length, 1);
       assert.deepEqual(result.enriched[0].rows.map(row => row['Année']), ['2021', '2022']);
     });
+    await t.test('chrono is selected before the beginning of the series', async () => {
+      const result = await enrichirEtStocker([
+        { 'N° début de série': '306800', 'N° fin de série': '307199', 'N° chrono': '79', 'Année': '2022' },
+      ], agency.id, type.id);
+      assert.equal(result.boxField, 'N° chrono');
+      assert.equal(result.enriched[0].numero_boite, '79');
+      assert.equal(result.enriched[0].rows[0]['N° début de série'], '306800');
+    });
     await t.test('deleting a box also removes its editable snapshot', async () => {
       const model = require('../models/MetaFieldValueModel');
       const old = await labels.resolveLabel(agency.id, type.id, 'OLD');

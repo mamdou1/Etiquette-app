@@ -18,7 +18,7 @@ function ensureSchema() {
 }
 const fail = (message, status = 400) => Object.assign(new Error(message), { status });
 const normalize = value => String(value).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
-const isBox = key => /^(?:(?:n|no|num|numero)(?:de)?(?:la)?boite|boite|boxnumber|box|numbox|nobox|numerobox)$/.test(normalize(key));
+const isBox = key => /^(?:(?:n|no|num|numero)(?:de)?(?:la)?boite|boite|boxnumber|box|numbox|nobox|numerobox|(?:n|no|num|numero)?chrono)$/.test(normalize(key));
 function summarize(rows) {
   const summary = {};
   for (const key of new Set(rows.flatMap(row => Object.keys(row)))) {

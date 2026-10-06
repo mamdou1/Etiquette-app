@@ -1,6 +1,6 @@
 export function isBoxField(name: string): boolean {
   const key = name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
-  return /^(?:(?:n|no|num|numero)(?:de)?(?:la)?boite|boite|boxnumber|box|numbox|nobox|numerobox)$/.test(key);
+  return /^(?:(?:n|no|num|numero)(?:de)?(?:la)?boite|boite|boxnumber|box|numbox|nobox|numerobox|(?:n|no|num|numero)?chrono)$/.test(key);
 }
 
 // Le champ Excel explicite prime sur l'identifiant technique d'un ancien import.

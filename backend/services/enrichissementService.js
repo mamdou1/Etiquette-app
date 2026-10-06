@@ -347,7 +347,7 @@ function detectColumn(headers, aliases) {
 function detectBoxColumn(headers) {
   const explicitBoxColumn = headers.find((header) => {
     const key = normalizeText(header).replace(/[^a-z0-9]/g, "");
-    return /^(?:(?:n|no|num|numero)(?:de)?(?:la)?boite|boite|boxnumber|box|numbox|nobox|numerobox)$/.test(
+    return /^(?:(?:n|no|num|numero)(?:de)?(?:la)?boite|boite|boxnumber|box|numbox|nobox|numerobox|(?:n|no|num|numero)?chrono)$/.test(
       key,
     );
   });

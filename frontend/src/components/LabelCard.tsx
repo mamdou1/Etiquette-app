@@ -251,10 +251,7 @@ const LabelCard: React.FC<Props> = ({
         const keys = Array.from(
           new Set<string>(rows.flatMap((row) => Object.keys(row))),
         ).filter((key) => !key.startsWith("_") && key !== "metaValues");
-        const isBox = (key: string) =>
-          /^(?:(?:n|no|num|numero)(?:de)?(?:la)?boite|boite|boxnumber|box|numbox|nobox|numero)$/.test(
-            normalizeText(key).replace(/[^a-z0-9]/g, ""),
-          );
+        const isBox = isBoxField;
         const fields = keys.filter((key) => !isBox(key));
         const label = (key: string) =>
           qrLabel(
@@ -289,12 +286,7 @@ const LabelCard: React.FC<Props> = ({
     for (const field of fieldsToUse) {
       // Le numéro est déjà présent en tête du QR, même si le fichier
       // l'expose aussi comme champ sous un autre libellé.
-      const isBoxNumberField = [field.name, field.label].some((key) => {
-        const normalized = normalizeText(key).replace(/[^a-z0-9]/g, "");
-        return /^(?:(?:n|no|num|numero)(?:de)?(?:la)?boite|boite|boxnumber|box|numbox|nobox|numero)$/.test(
-          normalized,
-        );
-      });
+      const isBoxNumberField = [field.name, field.label].some(isBoxField);
       if (isBoxNumberField) continue;
 
       const value = getFieldValue(field.name) || getFieldValue(field.label);
