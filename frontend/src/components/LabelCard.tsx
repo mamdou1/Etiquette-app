@@ -38,7 +38,7 @@ const LabelCard: React.FC<Props> = ({
 }) => {
   const [record, setRecord] = useState(sourceRecord);
   const [editing, setEditing] = useState(false);
-  useEffect(() => setRecord(sourceRecord), [sourceRecord]);
+  useEffect(() => setRecord(current => current === sourceRecord ? current : sourceRecord), [sourceRecord]);
   const editable = Boolean(record.__labelId || (record.__agenceId && record.__typeId));
   const boxNumber = resolveBoxNumber(record, suppliedBoxNumber);
   const isNumberField = (name: string) => {
@@ -342,6 +342,8 @@ const LabelCard: React.FC<Props> = ({
 
   return (
     <div
+      data-perf-label-card="true"
+      data-perf-qr-count={showQr && !qrContent.error ? qrContent.parts.length : 0}
       className={`label-card ${isCaissier ? "border-emerald-500 border-2 shadow-lg" : ""} ${color.bg} ${color.border}`}
       style={{ position: 'relative', ...(width ? { width } : {}) }}
       onClick={editable ? () => setEditing(true) : undefined}
@@ -674,4 +676,4 @@ function getValue(record: LabelRecord, key: string): LabelValue | undefined {
   return undefined;
 }
 
-export default LabelCard;
+export default React.memo(LabelCard);

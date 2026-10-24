@@ -1,4 +1,5 @@
 import React, { useRef, useState } from "react";
+import { logFrontendPerf } from "../utils/performance";
 
 interface Props {
   onFile: (file: File) => void;
@@ -15,6 +16,7 @@ const FileUpload: React.FC<Props> = ({ onFile, loading }) => {
       alert("Veuillez sélectionner un fichier .xlsx ou .xls");
       return;
     }
+    logFrontendPerf("file-selected", 0, { fileBytes: file.size });
     onFile(file);
   };
 

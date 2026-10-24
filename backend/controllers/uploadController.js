@@ -2,6 +2,7 @@ const fs = require("fs");
 const path = require("path");
 const { parseExcel } = require("../services/excelService");
 const { enrichirEtStocker } = require("../services/enrichissementService");
+const { now, elapsed } = require("../utils/performance");
 
 const ALLOWED_EXTENSIONS = ['.xlsx', '.xls'];
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
@@ -47,13 +48,20 @@ const handleUpload = async (req, res) => {
   }
 
   const filePath = req.file.path;
+  const parseStartedAt = now();
 
   try {
-    console.log(`📄 Traitement du fichier: ${req.file.originalname}`);
-    console.log(`📌 Agence: ${agence_id}, Type: ${type_document_id}`);
+    if (req.perf) req.perf.log('upload-context-validated', elapsed(req.perf.fileReceivedAt || req.perf.startedAt), {
+      fileBytes: req.file.size,
+    });
     
     // ✅ Lire TOUTES les feuilles
-    const { data, fields, availableYears, yearData, totalRows, sheets } = parseExcel(filePath);
+    const { data, fields, availableYears, yearData, totalRows, sheets } = parseExcel(filePath, req.perf);
+    if (req.perf) req.perf.log('excel-parse-total-controller', elapsed(parseStartedAt), {
+      sheets: sheets.length,
+      rows: totalRows,
+      fields: fields.length,
+    });
     
     if (!data || data.length === 0) {
       fs.unlinkSync(filePath);
@@ -63,11 +71,16 @@ const handleUpload = async (req, res) => {
       });
     }
 
-    console.log(`📊 ${data.length} lignes trouvées dans ${sheets.length} feuille(s)`);
-    console.log(`📅 Années disponibles: ${availableYears.join(', ')}`);
+    console.log('📊 Classeur traité', { rows: data.length, sheets: sheets.length, availableYears: availableYears.length });
 
     // ✅ Appel à enrichirEtStocker avec validation intégrée
-    const result = await enrichirEtStocker(data, agence_id, type_document_id);
+    const enrichmentStartedAt = now();
+    const result = await enrichirEtStocker(data, agence_id, type_document_id, req.perf);
+    if (req.perf) req.perf.log('enrichment-and-persistence-total', elapsed(enrichmentStartedAt), {
+      rows: result.totalLignes || 0,
+      boxes: result.totalBoites || 0,
+      labels: result.enriched?.length || 0,
+    });
 
     // ✅ Ajouter les années disponibles au résultat
     result.availableYears = availableYears;
@@ -78,12 +91,13 @@ const handleUpload = async (req, res) => {
     const allFields = [...new Set(result.enriched.flatMap(label => Object.keys(label.metaValues)))];
 
     fs.unlink(filePath, (err) => {
-      if (err) console.warn("⚠️ Impossible de supprimer le fichier temporaire :", err.message);
+      if (err) console.warn("⚠️ Nettoyage du fichier temporaire impossible", { errorName: err?.name || 'Error' });
     });
 
-    console.log(`✅ Traitement terminé: ${result.totalBoites} boîtes traitées`);
+    console.log('✅ Import terminé', { boxes: result.totalBoites || 0, rows: result.totalLignes || 0 });
 
-    return res.status(200).json({
+    const responseStartedAt = now();
+    const responseBody = {
       success: true,
       filename: req.file.originalname,
       totalLignes: result.totalLignes || 0,
@@ -104,10 +118,24 @@ const handleUpload = async (req, res) => {
       sheets: sheets,
       yearData: yearData,
       totalRows: totalRows
+    };
+    const responsePreparationMs = elapsed(responseStartedAt);
+    if (req.perf) req.perf.log('upload-response-preparation', responsePreparationMs, {
+      rows: totalRows,
+      boxes: result.totalBoites || 0,
+      labels: result.enriched?.length || 0,
+      sheets: sheets.length,
+      fields: allFields.length,
+    });
+    const jsonStartedAt = now();
+    res.status(200).json(responseBody);
+    if (req.perf) req.perf.log('upload-response-json-call', elapsed(jsonStartedAt), {
+      statusCode: 200,
+      labels: result.enriched?.length || 0,
     });
 
   } catch (error) {
-    console.error("❌ Erreur traitement:", error.message);
+    console.error("❌ Erreur traitement import", { errorName: error?.name || 'Error' });
     
     if (fs.existsSync(filePath)) {
       try { fs.unlinkSync(filePath); } catch (e) {}

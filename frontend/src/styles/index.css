@@ -14,6 +14,46 @@ body {
   color: #1a1a2e;
 }
 
+.print-document {
+  display: none;
+}
+
+.preview-screen {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.preview-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 0;
+}
+
+.preview-pagination button {
+  border: 1px solid #c8c5bf;
+  border-radius: 4px;
+  background: white;
+  padding: 6px 12px;
+  color: #1a1a2e;
+}
+
+.preview-pagination button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.preview-pagination input {
+  width: 4.5rem;
+  border: 1px solid #c8c5bf;
+  border-radius: 4px;
+  padding: 4px 6px;
+  text-align: center;
+}
+
 /* ─── Feuille A4 PAYSAGE ─────────────────────────────── */
 .a4-sheet {
   background: white;
@@ -243,6 +283,20 @@ body {
 
   .no-print {
     display: none !important;
+  }
+
+  .preview-screen {
+    display: none !important;
+  }
+
+  .print-document {
+    display: block !important;
+    width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: white !important;
   }
 
   html,

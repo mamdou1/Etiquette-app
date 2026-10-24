@@ -1,4 +1,5 @@
 const XLSX = require("xlsx");
+const { now, elapsed } = require('../utils/performance');
 
 // ✅ "production" RETIRÉ : "Annee de production" ne doit PAS être traité comme une date
 // ✅ "annee" sera exclu explicitement dans isDateField()
@@ -109,7 +110,8 @@ function detectHeaders(rows) {
 }
 
 // ✅ Fonction pour lire une seule feuille
-function parseSheet(worksheet, sheetName) {
+function parseSheet(worksheet, sheetName, perf, sheetIndex) {
+  const sheetStartedAt = now();
   if (!worksheet) {
     throw new Error(`La feuille "${sheetName}" n'a pu être lue`);
   }
@@ -120,7 +122,9 @@ function parseSheet(worksheet, sheetName) {
     return { data: [], fields: [], year: extractYearFromSheetName(sheetName) };
   }
 
+  const headerStartedAt = now();
   const headerRowIndex = detectHeaders(allRows);
+  const headerDetectionMs = elapsed(headerStartedAt);
 
   const headers = allRows[headerRowIndex]
     .map((h) => (h ? String(h).trim() : ""))
@@ -142,21 +146,34 @@ function parseSheet(worksheet, sheetName) {
     data.push(record);
   }
 
-  return {
+  const result = {
     data,
     fields: headers,
     year: extractYearFromSheetName(sheetName),
   };
+  if (perf) perf.log('excel-sheet-processing', elapsed(sheetStartedAt), {
+    sheetIndex,
+    rowsExamined: allRows.length,
+    dataRows: data.length,
+    fields: headers.length,
+    headerDetectionMs: Number(headerDetectionMs.toFixed(2)),
+  });
+  return result;
 }
 
 // ✅ Fonction principale - lit TOUTES les feuilles
-function parseExcel(filePath) {
+function parseExcel(filePath, perf) {
+  const parseStartedAt = now();
+  const workbookReadStartedAt = now();
   // ✅ CORRIGÉ : empêche la conversion automatique en Date
   const workbook = XLSX.readFile(filePath, {
     cellDates: false, // ✅ CRUCIAL : "2015" reste un nombre
     raw: true, // ✅ Garde les valeurs brutes
     cellNF: false,
     cellText: false,
+  });
+  if (perf) perf.log('excel-workbook-read', elapsed(workbookReadStartedAt), {
+    sheets: workbook.SheetNames.length,
   });
 
   const sheetNames = workbook.SheetNames;
@@ -169,9 +186,10 @@ function parseExcel(filePath) {
   const allFields = new Set();
   const yearData = {};
 
+  let sheetIndex = 0;
   for (const sheetName of sheetNames) {
     const worksheet = workbook.Sheets[sheetName];
-    const result = parseSheet(worksheet, sheetName);
+    const result = parseSheet(worksheet, sheetName, perf, sheetIndex++);
 
     if (result.data.length > 0) {
       const dataWithYear = result.data.map((record) => ({
@@ -203,7 +221,7 @@ function parseExcel(filePath) {
     .filter((y) => y !== "Sans année")
     .sort();
 
-  return {
+  const result = {
     data: allData,
     fields: fields,
     availableYears: availableYears,
@@ -211,6 +229,13 @@ function parseExcel(filePath) {
     totalRows: allData.length,
     sheets: sheetNames,
   };
+  if (perf) perf.log('excel-workbook-transform', elapsed(parseStartedAt), {
+    sheets: sheetNames.length,
+    rows: allData.length,
+    fields: fields.length,
+    years: availableYears.length,
+  });
+  return result;
 }
 
 module.exports = { parseExcel };

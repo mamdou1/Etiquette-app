@@ -32,11 +32,23 @@ api.interceptors.request.use(
 export { api };
 
 // ─── ✅ MODIFIER : uploadExcel accepte FormData ──────────────
-export const uploadExcel = async (formData: FormData) => {
+export const uploadExcel = async (formData: FormData, perfId?: string) => {
+  const startedAt = performance.now();
   const response = await api.post('/upload', formData, {
     headers: {
       'Content-Type': 'multipart/form-data',
+      ...(perfId ? { 'X-Perf-Id': perfId } : {}),
     },
   });
+  if (process.env.NODE_ENV === 'development' || process.env.REACT_APP_PERF_LOGS === '1') {
+    console.info('[PERF][FRONTEND]', {
+      operation: 'upload-http-roundtrip',
+      durationMs: Number((performance.now() - startedAt).toFixed(2)),
+      perfId,
+      statusCode: response.status,
+      enrichedBoxes: Array.isArray(response.data?.enriched) ? response.data.enriched.length : 0,
+      sheets: Array.isArray(response.data?.sheets) ? response.data.sheets.length : 0,
+    });
+  }
   return response.data;
 };

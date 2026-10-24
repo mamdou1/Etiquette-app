@@ -8,6 +8,7 @@ import AddBoiteModal from '../components/AddBoiteModal';
 import { Agence, getAllAgences, getAgenceHierarchy, getBoitesByAgence, HierarchyData } from '../services/agenceService';
 import { getMetaFieldsByType, MetaField } from '../services/metaFieldService';
 import { useSettings } from '../contexts/SettingsContext';
+import { createPerfId, logFrontendPerf, perfNow, printWithPerformance } from '../utils/performance';
 
 const Toast: React.FC<{ message: string; type?: 'success' | 'error' }> = ({ message, type = 'success' }) => {
   if (!message) return null;
@@ -181,6 +182,9 @@ const AgencePage: React.FC = () => {
   const handlePrintBoxes = async (boxes: Array<{ boxNumber: string; records: any[]; year?: string }>, title: string, level: 'agence' | 'type' | 'annee' | 'boite') => {
     if (!selectedAgenceId) return;
 
+    const perfId = createPerfId();
+    const preparationStartedAt = perfNow();
+    const selectedBoxCount = boxes.length;
     try {
       // La hiérarchie ne sert qu'à naviguer. Pour l'impression, relire les
       // colonnes Excel réellement enregistrées dans meta_field_values.
@@ -262,6 +266,11 @@ const AgencePage: React.FC = () => {
           .find(field => field.name === name) || { id: 0, name, label: name, field_type: 'text' }
       ),
     });
+    logFrontendPerf('agency-print-data-preparation', perfNow() - preparationStartedAt, {
+      selectedBoxes: selectedBoxCount,
+      preparedBoxes: boxes.length,
+      fields: fieldsToUse.length,
+    }, perfId);
   };
 
   const handleOpenAddBoite = async (typeId: number, typeNom: string) => {
@@ -287,7 +296,7 @@ const AgencePage: React.FC = () => {
   };
 
   const handlePrint = () => {
-    window.print();
+    printWithPerformance('agency-print-modal');
   };
 
   const handleReset = () => {

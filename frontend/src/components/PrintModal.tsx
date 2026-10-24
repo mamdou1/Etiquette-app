@@ -1,6 +1,6 @@
 import { StoredLabel } from '../services/labelService';
 import React from 'react';
-import PrintPreview from './PrintPreview';
+import PrintPreview, { PrintPreviewHandle } from './PrintPreview';
 import SettingsPanel from './SettingsPanel';
 import { useSettings } from '../contexts/SettingsContext';
 
@@ -41,6 +41,7 @@ const PrintModal: React.FC<PrintModalProps> = ({
   visibleFields: propVisibleFields,
   metaFields = [],
 }) => {
+  const previewRef = React.useRef<PrintPreviewHandle>(null);
   const { 
     visibleFields: contextVisibleFields, 
     cols, 
@@ -49,6 +50,7 @@ const PrintModal: React.FC<PrintModalProps> = ({
     labelsPerPage
   } = useSettings();
   const initializedFieldsRef = React.useRef('');
+  const requestPrint = React.useCallback(() => previewRef.current?.printAll(), []);
   
   const fieldsFromMeta = metaFields.map(mf => mf.name);
   
@@ -90,7 +92,7 @@ const PrintModal: React.FC<PrintModalProps> = ({
             <h2 className="text-xl font-bold text-primary">🖨️ {title}</h2>
             <div className="flex gap-3">
               <button
-                onClick={onPrint}
+                onClick={requestPrint}
                 className="bg-accent hover:bg-red-700 text-white px-4 py-2 rounded font-mono text-sm transition-colors flex items-center gap-2"
               >
                 🖨️ Imprimer
@@ -112,7 +114,7 @@ const PrintModal: React.FC<PrintModalProps> = ({
               availableYears={availableYears}
               selectedYears={selectedYears}
               onToggleYear={onToggleYear}
-              onPrint={onPrint}
+              onPrint={requestPrint}
               onReset={onReset}
               fields={finalFields}
               metaFields={metaFields}
@@ -121,7 +123,9 @@ const PrintModal: React.FC<PrintModalProps> = ({
             <div className="flex-1 overflow-y-auto p-6 print:p-0 print:overflow-visible">
               {boxes.length > 0 ? (
                 <PrintPreview
+                    ref={previewRef}
                     onLabelSaved={onLabelSaved}
+                  onPrint={onPrint}
                   boxes={boxes}
                   fields={finalFields}
                   visibleFields={visibleFields.length > 0 ? visibleFields : finalFields}

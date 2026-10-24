@@ -1,10 +1,10 @@
 import { labelToRecord, StoredLabel } from '../services/labelService';
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useCallback, useMemo, useRef, useState, useEffect } from "react";
 import * as XLSX from "xlsx";
 import { isBoxField } from '../utils/boxField';
 import FileUpload from "../components/FileUpload";
 import SettingsPanel from "../components/SettingsPanel";
-import PrintPreview from "../components/PrintPreview";
+import PrintPreview, { PrintPreviewHandle } from "../components/PrintPreview";
 import { uploadExcel } from "../services/api";
 import { getAllAgences, Agence } from "../services/agenceService";
 import {
@@ -19,6 +19,7 @@ import {
   FieldFilters,
 } from "../types";
 import { useSettings } from "../contexts/SettingsContext";
+import { createPerfId, logFrontendPerf, perfNow, printWithPerformance } from "../utils/performance";
 
 // ─── Helpers ──────────────────────────────────────────────────
 
@@ -293,7 +294,7 @@ function groupByBox(records: LabelRecord[], boxField: string): BoxGroup[] {
     });
 }
 
-function parseExcelToBoxes(file: File): Promise<{
+function parseExcelToBoxes(file: File, perfId: string): Promise<{
   filename: string;
   boxes: BoxGroup[];
   records: LabelRecord[];
@@ -304,10 +305,14 @@ function parseExcelToBoxes(file: File): Promise<{
 }> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
+    const fileReadStartedAt = perfNow();
     reader.onload = (e) => {
       try {
+        logFrontendPerf("file-read-browser", perfNow() - fileReadStartedAt, { fileBytes: file.size }, perfId);
         const data = new Uint8Array(e.target?.result as ArrayBuffer);
+        const xlsxStartedAt = perfNow();
         const workbook = XLSX.read(data, { type: "array" });
+        logFrontendPerf("xlsx-parse-browser", perfNow() - xlsxStartedAt, { sheets: workbook.SheetNames.length }, perfId);
         const sheetNames = workbook.SheetNames;
 
         if (!sheetNames.length) {
@@ -319,13 +324,21 @@ function parseExcelToBoxes(file: File): Promise<{
         const allBoxes: BoxGroup[] = [];
         const sheetData: { [sheetName: string]: { boxes: BoxGroup[]; records: LabelRecord[]; year: string } } = {};
         const availableYearsSet = new Set<string>();
+        let rowsExamined = 0;
+        let rowsAccepted = 0;
+        let sheetJsonMs = 0;
+        let groupingMs = 0;
+        const transformStartedAt = perfNow();
 
         for (const sheetName of sheetNames) {
           const worksheet = workbook.Sheets[sheetName];
           if (!worksheet) continue;
 
+          const sheetJsonStartedAt = perfNow();
           const allRows: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+          sheetJsonMs += perfNow() - sheetJsonStartedAt;
           if (!allRows.length) continue;
+          rowsExamined += allRows.length;
 
           const headerRowIndex = detectHeaders(allRows);
           const headers = allRows[headerRowIndex]
@@ -346,6 +359,7 @@ function parseExcelToBoxes(file: File): Promise<{
           }
 
           if (records.length === 0) continue;
+          rowsAccepted += records.length;
 
           let year = extractYearFromSheetName(sheetName) || '';
           
@@ -383,8 +397,10 @@ function parseExcelToBoxes(file: File): Promise<{
           allRecords.push(...recordsWithYear);
           headers.forEach(h => allFields.add(h));
 
+          const groupingStartedAt = perfNow();
           const boxKey = detectBoxField(headers, recordsWithYear);
           const boxes = groupByBox(recordsWithYear, boxKey);
+          groupingMs += perfNow() - groupingStartedAt;
           allBoxes.push(...boxes);
 
           sheetData[sheetName] = {
@@ -405,6 +421,17 @@ function parseExcelToBoxes(file: File): Promise<{
         const allHeaders = Array.from(allFields);
         const boxKey = detectBoxField(allHeaders, allRecords);
         const availableYears = Array.from(availableYearsSet).sort();
+
+        logFrontendPerf("excel-data-preparation-browser", perfNow() - transformStartedAt, {
+          sheets: sheetNames.length,
+          rowsExamined,
+          rowsAccepted,
+          boxes: allBoxes.length,
+          fields: allHeaders.length,
+          sheetJsonMs: Number(sheetJsonMs.toFixed(2)),
+          groupingMs: Number(groupingMs.toFixed(2)),
+          totalMs: Number((perfNow() - fileReadStartedAt).toFixed(2)),
+        }, perfId);
 
         resolve({
           filename: file.name,
@@ -427,6 +454,7 @@ function parseExcelToBoxes(file: File): Promise<{
 // ─── Composant Home ───────────────────────────────────────────
 
 const Home: React.FC = () => {
+  const previewRef = useRef<PrintPreviewHandle>(null);
   const {
     cols,
     size,
@@ -484,7 +512,7 @@ const Home: React.FC = () => {
           setSelectedAgenceId(response.data[0].id);
         }
       } catch (err) {
-        console.error("Erreur chargement agences:", err);
+        console.error("Erreur chargement agences", { statusCode: (err as any)?.response?.status || 0 });
         setError("Impossible de charger les agences");
       } finally {
         setLoadingAgences(false);
@@ -510,7 +538,7 @@ const Home: React.FC = () => {
           setSelectedTypeId(null);
         }
       } catch (err) {
-        console.error("Erreur chargement types:", err);
+        console.error("Erreur chargement types", { statusCode: (err as any)?.response?.status || 0 });
         setTypes([]);
         setSelectedTypeId(null);
       }
@@ -591,6 +619,9 @@ const Home: React.FC = () => {
       return;
     }
 
+    const perfId = createPerfId();
+    const importStartedAt = perfNow();
+    logFrontendPerf("import-start", 0, { fileBytes: file.size }, perfId);
     setLoading(true);
     setError("");
     setEnrichedInfo(null);
@@ -600,7 +631,7 @@ const Home: React.FC = () => {
     setRawRecords([]);
 
     try {
-      const result = await parseExcelToBoxes(file);
+      const result = await parseExcelToBoxes(file, perfId);
 
       setFields(result.fields);
       setFilename(result.filename);
@@ -614,14 +645,22 @@ const Home: React.FC = () => {
       setError("⏳ Vérification et stockage en cours...");
       
       try {
+        const formDataStartedAt = perfNow();
         const formData = new FormData();
         formData.append("file", file);
         formData.append("agence_id", String(selectedAgenceId));
         formData.append("type_document_id", String(selectedTypeId));
+        logFrontendPerf("upload-formdata-preparation", perfNow() - formDataStartedAt, {
+          fileBytes: file.size,
+        }, perfId);
 
-        const response = await uploadExcel(formData);
+        const response = await uploadExcel(formData, perfId);
         
-        console.log("📥 Réponse du backend:", response);
+        logFrontendPerf("import-roundtrip-complete", perfNow() - importStartedAt, {
+          statusSuccess: Boolean(response?.success),
+          enrichedBoxes: Array.isArray(response?.enriched) ? response.enriched.length : 0,
+          rows: Number(response?.totalLignes || 0),
+        }, perfId);
         
         // ✅ Vérifier si la réponse contient des données
         if (response && response.success) {
@@ -644,6 +683,7 @@ const Home: React.FC = () => {
               setSelectedYears(response.availableYears);
             }
 
+            const responsePreparationStartedAt = perfNow();
             const enrichedBoxes = response.enriched.map((item: StoredLabel) => ({
               boxNumber: item.numero_boite, records: [labelToRecord(item)], year: item.annee,
             }));
@@ -659,6 +699,11 @@ const Home: React.FC = () => {
               [] as LabelRecord[]
             );
             setRawRecords(allRecords);
+            logFrontendPerf("import-response-preparation", perfNow() - responsePreparationStartedAt, {
+              boxes: enrichedBoxes.length,
+              labels: allRecords.length,
+              fields: allFields.length,
+            }, perfId);
 
             setEnrichedInfo({
               original: response.totalLignes || 0,
@@ -684,12 +729,12 @@ const Home: React.FC = () => {
             throw new Error("Le serveur n’a confirmé aucune étiquette enregistrée. Vérifiez l’import.");
           }
         } else {
-          console.warn("⚠️ Réponse inattendue du backend:", response);
+          console.warn("⚠️ Format de réponse inattendu", { hasResponse: Boolean(response) });
           setError("La réponse du serveur n'est pas au format attendu");
         }
         
       } catch (err: any) {
-        console.warn("⚠️ Validation/Stockage échoué:", err.message);
+        console.warn("⚠️ Validation/Stockage échoué", { statusCode: err.response?.status || 0 });
         
         let errorMessage = "Erreur lors de la validation";
         if (err.response?.data?.error) {
@@ -704,7 +749,7 @@ const Home: React.FC = () => {
         setUploading(false);
       }
     } catch (err: any) {
-      console.error("❌ Erreur:", err);
+      console.error("❌ Erreur de lecture du fichier", { errorName: err?.name || "Error" });
       setError(err.message || "Erreur lors de la lecture du fichier");
       setBoxes([]);
       setRawRecords([]);
@@ -713,14 +758,17 @@ const Home: React.FC = () => {
     }
   };
 
-  const handleLabelSaved = (label: StoredLabel) => {
+  const handleLabelSaved = useCallback((label: StoredLabel) => {
     const updated = labelToRecord(label);
     setRawRecords(previous => previous.map(record => String(record.__labelId) === String(label.id) ? updated : record));
     setBoxes(previous => previous.map(box => box.records.some(record => String(record.__labelId) === String(label.id))
       ? { ...box, boxNumber: label.numero_boite, year: label.annee, records: [updated] } : box));
     setAvailableYearsFromFile([]);
     setSelectedYears([]);
-  };
+  }, []);
+
+  const requestPrint = useCallback(() => previewRef.current?.printAll(), []);
+  const executePrint = useCallback(() => printWithPerformance("home-preview"), []);
 
   const reset = () => {
     setBoxes([]);
@@ -752,7 +800,6 @@ const Home: React.FC = () => {
   const hasData = boxes.length > 0 && uploadSuccess;
   const totalBoxes = filteredBoxes.length;
 
-  console.log("📊 hasData:", hasData, "boxes:", boxes.length, "uploadSuccess:", uploadSuccess);
 
   return (
     <div className="flex flex-1 min-h-[calc(100vh-120px)]">
@@ -996,11 +1043,13 @@ const Home: React.FC = () => {
             availableYears={availableYears}
             selectedYears={selectedYears}
             onToggleYear={toggleYear}
-            onPrint={() => window.print()}
+            onPrint={requestPrint}
             onReset={reset}
           />
           <PrintPreview
+            ref={previewRef}
             onLabelSaved={handleLabelSaved}
+            onPrint={executePrint}
             boxes={filteredBoxes}
             fields={fields}
             visibleFields={visibleFields}

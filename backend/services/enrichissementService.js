@@ -5,6 +5,7 @@ const {
   MetaFieldValueModel,
 } = require("../models");
 const { pool } = require("../config/database");
+const { now, elapsed } = require('../utils/performance');
 
 // ─── ALIASES POUR LA DÉTECTION ──────────────────────────────────
 const FIELD_ALIASES = {
@@ -397,7 +398,6 @@ function detectAnneeColumn(headers) {
     );
   });
   if (exactMatch) {
-    console.log(`✅ Colonne année (production) détectée: ${exactMatch}`);
     return exactMatch;
   }
 
@@ -407,7 +407,6 @@ function detectAnneeColumn(headers) {
     return n.includes("anne") && !n.includes("date") && !n.includes("destruct");
   });
   if (anneeOnly) {
-    console.log(`✅ Colonne année détectée: ${anneeOnly}`);
     return anneeOnly;
   }
 
@@ -432,7 +431,6 @@ function detectDateColumn(headers) {
     );
   });
   if (exactMatch) {
-    console.log(`✅ Colonne date (production) détectée: ${exactMatch}`);
     return exactMatch;
   }
 
@@ -442,7 +440,6 @@ function detectDateColumn(headers) {
     return n.includes("date") && !n.includes("anne") && !n.includes("destruct");
   });
   if (dateOnly) {
-    console.log(`✅ Colonne date détectée: ${dateOnly}`);
     return dateOnly;
   }
 
@@ -509,15 +506,15 @@ function groupByBox(records, boxColumn, anneeColumn) {
   }));
 }
 
-const enrichirEtStocker = async (records, agenceId, typeDocumentId) => {
-  console.log(`📥 enrichirEtStocker: ${records.length} lignes reçues`);
-  console.log(`📌 Agence: ${agenceId}, Type: ${typeDocumentId}`);
+const enrichirEtStocker = async (records, agenceId, typeDocumentId, perf) => {
+  const totalStartedAt = now();
 
   if (!records || records.length === 0) {
     return { enriched: [], savedCount: 0, message: "Aucune donnée" };
   }
 
   // ─── 1. Vérifier l'agence et le type ──────────────────────────
+  const contextStartedAt = now();
   const agence = await AgenceModel.findById(agenceId);
   if (!agence) {
     throw new Error("Agence non trouvée");
@@ -527,10 +524,11 @@ const enrichirEtStocker = async (records, agenceId, typeDocumentId) => {
   if (!typeDoc) {
     throw new Error("Type de document non trouvé");
   }
+  if (perf) perf.log('enrichment-context-lookup', elapsed(contextStartedAt), {});
 
   // ─── 2. Détecter les colonnes ─────────────────────────────────
+  const detectionStartedAt = now();
   const headers = [...new Set(records.flatMap(record => Object.keys(record)))].filter(key => !key.startsWith('_'));
-  console.log("📋 Colonnes détectées:", headers);
 
   const boxColumn = detectBoxColumn(headers);
   const anneeColumn = detectAnneeColumn(headers);
@@ -539,18 +537,14 @@ const enrichirEtStocker = async (records, agenceId, typeDocumentId) => {
   const rayonColumn = detectRayonColumn(headers);
   const traversColumn = detectTraversColumn(headers);
 
-  console.log(`🔍 Box: ${boxColumn}`);
-  console.log(`🔍 Année: ${anneeColumn}`);
-  console.log(`🔍 Agence: ${agenceColumn}`);
-  console.log(`🔍 Type: ${typeColumn}`);
-  console.log(`🔍 Rayon: ${rayonColumn}`);
-  console.log(`🔍 Travers: ${traversColumn}`);
+  if (perf) perf.log('column-detection', elapsed(detectionStartedAt), { columns: headers.length });
 
   if (!boxColumn) {
     throw new Error('Impossible de détecter la colonne "N° Boîte"');
   }
 
   // ─── ✅ 2.bis NETTOYAGE STRICT DE L'ANNÉE ──────────────────────
+  const validationStartedAt = now();
   // L'année de production ne doit JAMAIS être une date complète.
   // On extrait uniquement les 4 chiffres de l'année.
   for (const record of records) {
@@ -572,9 +566,6 @@ const enrichirEtStocker = async (records, agenceId, typeDocumentId) => {
       } else {
         anneeStr = String(y);
       }
-      console.log(
-        `🔧 Année Date corrigée: ${val.toISOString()} → "${anneeStr}"`,
-      );
     }
     // Cas 2 : nombre → convertir en string
     else if (typeof val === "number") {
@@ -615,7 +606,6 @@ const enrichirEtStocker = async (records, agenceId, typeDocumentId) => {
           `❌ L'agence dans le fichier (${uniqueAgences.join(", ")}) ne correspond pas à l'agence sélectionnée (${agence.nom})`,
         );
       }
-      console.log(`✅ Validation agence OK: ${agence.nom}`);
     }
   }
 
@@ -639,9 +629,6 @@ const enrichirEtStocker = async (records, agenceId, typeDocumentId) => {
             matchedType = mapped;
             matchedTypeId = foundType.id;
             matchedFrom = fileType;
-            console.log(
-              `✅ Type "${fileType}" mappé vers "${mapped}" (ID: ${foundType.id})`,
-            );
             break;
           }
         }
@@ -649,16 +636,7 @@ const enrichirEtStocker = async (records, agenceId, typeDocumentId) => {
 
       if (matchedType && matchedTypeId) {
         if (matchedTypeId === typeDocumentId) {
-          console.log(
-            `✅ Le type sélectionné correspond au type mappé: ${matchedType}`,
-          );
         } else {
-          console.log(
-            `⚠️ Type mappé "${matchedType}" (ID: ${matchedTypeId}) différent du type sélectionné "${typeDoc.nom}" (ID: ${typeDocumentId})`,
-          );
-          console.log(
-            `🔄 Utilisation automatique du type "${matchedType}" (ID: ${matchedTypeId})`,
-          );
           typeDocumentId = matchedTypeId;
         }
       } else {
@@ -694,8 +672,9 @@ const enrichirEtStocker = async (records, agenceId, typeDocumentId) => {
   }
 
   // ─── 4. Récupérer les MetaFields du type ──────────────────────
+  if (perf) perf.log('data-normalization-and-validation', elapsed(validationStartedAt), { rows: records.length });
+  const metaFieldsStartedAt = now();
   let metaFields = await MetaFieldModel.findByType(typeDocumentId);
-  console.log(`📋 ${metaFields.length} MetaFields existants`);
 
   // ─── 5. Créer les MetaFields manquants ────────────────────────
   const mandatoryColumns = [boxColumn, anneeColumn];
@@ -709,7 +688,6 @@ const enrichirEtStocker = async (records, agenceId, typeDocumentId) => {
     return !isMandatory && !h.startsWith('_');
   });
 
-  console.log(`📋 Colonnes à créer comme MetaFields: ${columnsToCreate}`);
 
   let createdCount = 0;
   for (const col of columnsToCreate) {
@@ -729,23 +707,31 @@ const enrichirEtStocker = async (records, agenceId, typeDocumentId) => {
       });
       metaFields.push(newField);
       createdCount++;
-      console.log(`📝 Nouveau MetaField créé: ${col}`);
     }
   }
 
-  if (createdCount > 0) {
-    console.log(`✅ ${createdCount} nouveau(x) MetaField(s) créé(s)`);
-  }
+  if (perf) perf.log('meta-field-load-and-create', elapsed(metaFieldsStartedAt), {
+    existingAndCreatedFields: metaFields.length,
+    createdFields: createdCount,
+  });
 
   // ─── 6. Regrouper par boîte ──────────────────────────────────
+  const groupingStartedAt = now();
   const grouped = groupByBox(records, boxColumn, anneeColumn, metaFields);
-  console.log(`📦 ${records.length} lignes → ${grouped.length} boîtes`);
+  if (perf) perf.log('records-grouped-by-box', elapsed(groupingStartedAt), { rows: records.length, boxes: grouped.length });
 
   // ─── 7. Sauvegarder dans meta_field_values ──────────────────
-  const enriched = await require('./labelService').importLabels(agenceId, typeDocumentId, grouped, boxColumn);
+  const databaseStartedAt = now();
+  const enriched = await require('./labelService').importLabels(agenceId, typeDocumentId, grouped, boxColumn, perf);
+  if (perf) perf.log('database-import-labels-stage', elapsed(databaseStartedAt), { boxes: grouped.length, fields: metaFields.length });
   const savedCount = grouped.length * metaFields.length;
 
-  console.log(`✅ ${savedCount} valeurs sauvegardées`);
+  if (perf) perf.log('enrichment-total', elapsed(totalStartedAt), {
+    rows: records.length,
+    boxes: grouped.length,
+    labels: enriched.length,
+    fields: metaFields.length,
+  });
 
   return {
     enriched,

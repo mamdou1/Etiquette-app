@@ -1,4 +1,5 @@
 const { pool } = require('../config/database');
+const { now, elapsed } = require('../utils/performance');
 
 let schemaReady;
 function ensureSchema() {
@@ -45,23 +46,36 @@ function present(row) {
     rows, metaValues: summarize(rows), revision: row.revision,
     qrEnabled: row.qr_enabled === null ? null : Boolean(row.qr_enabled), qrSize: row.qr_size };
 }
-async function writeValues(connection, label) {
+async function executeImportQuery(connection, sql, params, metrics, kind) {
+  if (!metrics) return connection.execute(sql, params);
+  const startedAt = now();
+  try {
+    return await connection.execute(sql, params);
+  } finally {
+    const durationMs = elapsed(startedAt);
+    metrics[`${kind}Queries`]++;
+    metrics[`${kind}Ms`] += durationMs;
+  }
+}
+async function writeValues(connection, label, metrics) {
   const values = summarize(label.rows);
-  const [fields] = await connection.execute('SELECT id, name, label FROM meta_fields WHERE type_document_id = ? AND deleted_at IS NULL', [label.type_document_id]);
+  const [fields] = await executeImportQuery(connection, 'SELECT id, name, label FROM meta_fields WHERE type_document_id = ? AND deleted_at IS NULL', [label.type_document_id], metrics, 'read');
   for (const field of fields) {
     const key = Object.keys(values).find(key => normalize(key) === normalize(field.name) || normalize(key) === normalize(field.label));
     const value = key ? values[key] : '';
     // TEXT est limité en octets, pas en nombre de caractères.
     if (Buffer.byteLength(value, 'utf8') > 65535) throw fail(`Le champ ${field.label} est trop volumineux pour être enregistré.`);
-    await connection.execute(`INSERT INTO meta_field_values
+    await executeImportQuery(connection, `INSERT INTO meta_field_values
       (agence_id,type_document_id,meta_field_id,numero_boite,annee,value,created_at,updated_at)
       VALUES (?,?,?,?,?,?,NOW(),NOW()) ON DUPLICATE KEY UPDATE value=VALUES(value),annee=VALUES(annee),updated_at=NOW()`,
-    [label.agence_id, label.type_document_id, field.id, label.numero_boite, label.annee, value]);
+    [label.agence_id, label.type_document_id, field.id, label.numero_boite, label.annee, value], metrics, 'write');
   }
 }
-async function importLabels(agenceId, typeId, groups, boxField) {
+async function importLabels(agenceId, typeId, groups, boxField, perf) {
   await ensureSchema();
   const connection = await pool.getConnection();
+  const transactionStartedAt = now();
+  const metrics = perf ? { readQueries: 0, writeQueries: 0, readMs: 0, writeMs: 0 } : null;
   try {
     await connection.beginTransaction();
     const labels = [];
@@ -69,16 +83,30 @@ async function importLabels(agenceId, typeId, groups, boxField) {
       validateRows(group.rows);
       if (!group.numero_boite || group.numero_boite.length > 50) throw fail('Le numéro de boîte doit contenir entre 1 et 50 caractères.');
       const label = { ...group, agence_id: agenceId, type_document_id: typeId };
-      await connection.execute(`INSERT INTO archive_labels
+      await executeImportQuery(connection, `INSERT INTO archive_labels
         (agence_id,type_document_id,numero_boite,annee,box_field,rows_json,created_at,updated_at)
         VALUES (?,?,?,?,?,?,NOW(),NOW()) ON DUPLICATE KEY UPDATE
         annee=VALUES(annee),box_field=VALUES(box_field),rows_json=VALUES(rows_json),revision=revision+1,updated_at=NOW()`,
-      [agenceId,typeId,group.numero_boite,group.annee,boxField,JSON.stringify(group.rows)]);
-      await writeValues(connection, label);
-      const [stored] = await connection.execute('SELECT * FROM archive_labels WHERE agence_id=? AND type_document_id=? AND numero_boite=?', [agenceId,typeId,group.numero_boite]);
+      [agenceId,typeId,group.numero_boite,group.annee,boxField,JSON.stringify(group.rows)], metrics, 'write');
+      await writeValues(connection, label, metrics);
+      const [stored] = await executeImportQuery(connection, 'SELECT * FROM archive_labels WHERE agence_id=? AND type_document_id=? AND numero_boite=?', [agenceId,typeId,group.numero_boite], metrics, 'read');
       labels.push(present(stored[0]));
     }
     await connection.commit();
+    if (perf) {
+      perf.log('database-import-query-summary', metrics.readMs + metrics.writeMs, {
+        ...metrics,
+        boxes: groups.length,
+        labels: labels.length,
+        fieldsPerBox: groups.length ? metrics.writeQueries / groups.length - 1 : 0,
+      }, 'DATABASE');
+      perf.log('database-import-transaction', elapsed(transactionStartedAt), {
+        boxes: groups.length,
+        labels: labels.length,
+        readQueries: metrics.readQueries,
+        writeQueries: metrics.writeQueries,
+      }, 'DATABASE');
+    }
     return labels;
   } catch (error) { await connection.rollback(); throw error; }
   finally { connection.release(); }
