@@ -1,3 +1,4 @@
+import { statisticsText } from '../utils/qrStatistics';
 import LabelEditorModal from './LabelEditorModal';
 import { labelToRecord, StoredLabel } from '../services/labelService';
 import React, { useMemo, useState, useEffect } from "react";
@@ -59,6 +60,7 @@ const LabelCard: React.FC<Props> = ({
     valueSpacing,
     boxPrefix,
     fieldRange,
+    qrStatistics,
   } = useSettings();
   const showQr = record.__qrEnabled === 'true' ? true : record.__qrEnabled === 'false' ? false : globalShowQr;
   const displayBoxPrefix = boxPrefix.trim() || "Boîte N°";
@@ -263,8 +265,10 @@ const LabelCard: React.FC<Props> = ({
         );
       }
     }
+    const summary = statisticsText(record, qrStatistics, metaFields);
+    if (summary) lines.push(summary);
     return lines.join("\n\n");
-  }, [record, allFields, boxNumber, metaFields]);
+  }, [record, allFields, boxNumber, metaFields, qrStatistics]);
 
   const qrContent = useMemo(
     () => splitQrContent(qrData, boxNumber),

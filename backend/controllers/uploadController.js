@@ -56,7 +56,7 @@ const handleUpload = async (req, res) => {
     });
     
     // ✅ Lire TOUTES les feuilles
-    const { data, fields, availableYears, yearData, totalRows, sheets } = parseExcel(filePath, req.perf);
+    const { data, fields, availableYears, yearData, totalRows, sheets, ignoredSheets } = parseExcel(filePath, req.perf);
     if (req.perf) req.perf.log('excel-parse-total-controller', elapsed(parseStartedAt), {
       sheets: sheets.length,
       rows: totalRows,
@@ -116,6 +116,7 @@ const handleUpload = async (req, res) => {
       // ✅ AJOUT : Informations sur les feuilles/années
       availableYears: availableYears,
       sheets: sheets,
+      ignoredSheets: ignoredSheets,
       yearData: yearData,
       totalRows: totalRows
     };
@@ -145,6 +146,10 @@ const handleUpload = async (req, res) => {
       success: false,
       error: error.message || "Impossible de traiter le fichier Excel",
       details: error.message,
+      code: error.code || undefined,
+      validationErrors: Array.isArray(error.validationErrors)
+        ? error.validationErrors
+        : undefined,
     });
   }
 };

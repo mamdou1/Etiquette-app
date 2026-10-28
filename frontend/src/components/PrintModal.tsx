@@ -79,6 +79,7 @@ const PrintModal: React.FC<PrintModalProps> = ({
     initializedFieldsRef.current = fieldsKey;
   }, [isOpen, finalFields.join('|'), contextVisibleFields, setVisibleFields]);
 
+  const statisticsRecords = React.useMemo(() => boxes.flatMap(box => box.records), [boxes]);
   if (!isOpen) return null;
 
   return (
@@ -108,6 +109,7 @@ const PrintModal: React.FC<PrintModalProps> = ({
 
           <div className="print-modal-content flex flex-1 overflow-hidden">
             <SettingsPanel
+            statisticsRecords={statisticsRecords}
               filename={filename}
               total={total}
               sourceTotal={sourceTotal}

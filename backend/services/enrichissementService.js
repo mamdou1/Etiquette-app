@@ -490,9 +490,27 @@ function findMatchingMetaField(columnName, metaFields) {
 // ─── REGROUPEMENT PAR BOÎTE ─────────────────────────────────────
 function groupByBox(records, boxColumn, anneeColumn) {
   const groups = new Map();
+  const invalidRows = records
+    .filter((record) => !String(record[boxColumn] ?? '').trim())
+    .map((record) => ({
+      row: record._excelRow || '?',
+      sheet: record._sheetName || 'Feuille inconnue',
+    }));
+
+  if (invalidRows.length > 0) {
+    const label = invalidRows.length === 1
+      ? 'Une ligne ne contient pas de numéro de boîte.'
+      : `${invalidRows.length} lignes ne contiennent pas de numéro de boîte.`;
+    const error = new Error(
+      `${label} Corrigez ${invalidRows.length === 1 ? 'cette ligne' : 'ces lignes'} dans le fichier avant de l’importer.`,
+    );
+    error.code = 'MISSING_BOX_NUMBER';
+    error.validationErrors = invalidRows;
+    throw error;
+  }
+
   for (const record of records) {
     const numero_boite = String(record[boxColumn] ?? '').trim();
-    if (!numero_boite) throw new Error('Une ligne ne contient pas de numéro de boîte. Corrigez le fichier avant de l’importer.');
     if (!groups.has(numero_boite)) groups.set(numero_boite, { numero_boite, rows: [], years: new Set() });
     const group = groups.get(numero_boite);
     const row = Object.fromEntries(Object.entries(record).filter(([key]) => !key.startsWith('_')));

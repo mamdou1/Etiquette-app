@@ -1,3 +1,5 @@
+import QrStatisticsPanel from './QrStatisticsPanel';
+import { LabelRecord } from '../types';
 import React, { useState } from "react";
 import { useSettings } from "../contexts/SettingsContext";
 import { ColumnCount, LabelSize } from "../types";
@@ -22,6 +24,7 @@ function hasActiveFilters(filters: any) {
 }
 
 interface Props {
+  statisticsRecords?: LabelRecord[];
   fields: string[];
   filename: string;
   total: number;
@@ -41,6 +44,7 @@ interface Props {
 
 const SettingsPanel: React.FC<Props> = ({
   fields,
+  statisticsRecords = [],
   filename,
   total,
   sourceTotal,
@@ -432,6 +436,8 @@ const SettingsPanel: React.FC<Props> = ({
         <p className="font-mono text-[10px] uppercase tracking-widest text-muted mb-3">
           06 - Contenu et espacement
         </p>
+        <QrStatisticsPanel records={statisticsRecords} labels={metaFields} />
+
         <div className="flex items-center justify-between mb-3">
           <span id="show-qr-label" className="text-sm">Afficher les QR codes</span>
           <button type="button" role="switch" aria-checked={showQr} aria-labelledby="show-qr-label"

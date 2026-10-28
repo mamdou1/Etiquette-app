@@ -12,6 +12,31 @@ function normalizeHeader(header) {
     .toLowerCase();
 }
 
+function selectDataSheets(parsedSheets) {
+  const nonEmptySheets = parsedSheets.filter((sheet) => sheet.data.length > 0);
+  if (nonEmptySheets.length <= 1) return nonEmptySheets;
+
+  // La feuille de référence est celle dont le schéma contient le plus de
+  // colonnes métier. Le nombre de lignes départage les schémas équivalents.
+  const canonicalSheet = [...nonEmptySheets].sort(
+    (left, right) =>
+      right.fields.length - left.fields.length ||
+      right.data.length - left.data.length,
+  )[0];
+  const canonicalFields = new Set(canonicalSheet.fields.map(normalizeHeader));
+
+  return nonEmptySheets.filter((sheet) => {
+    if (sheet === canonicalSheet) return true;
+    const fields = sheet.fields.map(normalizeHeader);
+    const matchingFields = fields.filter((field) => canonicalFields.has(field));
+    const minimumMatches = Math.min(3, fields.length, canonicalFields.size);
+    return (
+      matchingFields.length >= minimumMatches &&
+      matchingFields.length / fields.length >= 0.5
+    );
+  });
+}
+
 // ✅ CORRIGÉ : exclut les colonnes d'année de la détection "date"
 function isDateField(header) {
   const normalized = normalizeHeader(header);
@@ -202,10 +227,16 @@ function parseSheet(worksheet, sheetName, perf, sheetIndex) {
 
   const data = [];
   const rowTransformStartedAt = now();
-  for (const row of allRows) {
+  for (let rowIndex = 0; rowIndex < allRows.length; rowIndex++) {
+    const row = allRows[rowIndex];
     if (!row?.some((cell) => cell && String(cell).trim())) continue;
 
-    const record = {};
+    const record = {
+      // Numéro réel affiché par Excel (les index XLSX commencent à zéro).
+      // Ces métadonnées sont retirées avant la sauvegarde en base.
+      _excelRow: dataStartRow + rowIndex + 1,
+      _sheetName: sheetName,
+    };
     headers.forEach((header, idx) => {
       record[header] = cleanCellValue(header, row[idx] ?? "");
     });
@@ -256,14 +287,26 @@ function parseExcel(filePath, perf) {
     throw new Error("Le fichier Excel ne contient aucune feuille");
   }
 
-  const allData = [];
-  const allFields = new Set();
-  const yearData = {};
-
+  const parsedSheets = [];
   let sheetIndex = 0;
   for (const sheetName of sheetNames) {
     const worksheet = workbook.Sheets[sheetName];
     const result = parseSheet(worksheet, sheetName, perf, sheetIndex++);
+
+    parsedSheets.push({ ...result, sheetName });
+  }
+
+  const dataSheets = selectDataSheets(parsedSheets);
+  const importedSheetNames = dataSheets.map((sheet) => sheet.sheetName);
+  const ignoredSheets = sheetNames.filter(
+    (sheetName) => !importedSheetNames.includes(sheetName),
+  );
+  const allData = [];
+  const allFields = new Set();
+  const yearData = {};
+
+  for (const result of dataSheets) {
+    const sheetName = result.sheetName;
 
     if (result.data.length > 0) {
       const dataWithYear = result.data.map((record) => ({
@@ -301,10 +344,12 @@ function parseExcel(filePath, perf) {
     availableYears: availableYears,
     yearData: yearData,
     totalRows: allData.length,
-    sheets: sheetNames,
+    sheets: importedSheetNames,
+    ignoredSheets,
   };
   if (perf) perf.log('excel-workbook-transform', elapsed(parseStartedAt), {
-    sheets: sheetNames.length,
+    sheets: importedSheetNames.length,
+    ignoredSheets: ignoredSheets.length,
     rows: allData.length,
     fields: fields.length,
     years: availableYears.length,

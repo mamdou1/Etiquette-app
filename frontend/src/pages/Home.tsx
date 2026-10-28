@@ -23,6 +23,12 @@ import { createPerfId, logFrontendPerf, perfNow, printWithPerformance } from "..
 // ─── Helpers ──────────────────────────────────────────────────
 
 const DATE_FIELD_RE = /\b(date|jour|production|expiration|echeance)\b/i;
+const ERROR_PAGE_SIZE = 10;
+
+interface ValidationRowError {
+  row: number | string;
+  sheet: string;
+}
 
 function normalizeText(value: unknown) {
   return String(value ?? "")
@@ -211,6 +217,8 @@ const Home: React.FC = () => {
   const [fields, setFields] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [validationErrors, setValidationErrors] = useState<ValidationRowError[]>([]);
+  const [validationErrorPage, setValidationErrorPage] = useState(0);
   const [filename, setFilename] = useState("");
   const [boxField, setBoxField] = useState<string>("");
   const [enrichedInfo, setEnrichedInfo] = useState<{ original: number; saved: number } | null>(null);
@@ -327,7 +335,10 @@ const Home: React.FC = () => {
     return groupByBox(filteredRecords, boxField);
   }, [filteredRecords, boxField]);
 
-  const displayError = (errorMessage: string) => {
+  const displayError = (
+    errorMessage: string,
+    rowErrors: ValidationRowError[] = [],
+  ) => {
     let displayMsg = errorMessage;
     let suggestion = '';
     
@@ -340,6 +351,8 @@ const Home: React.FC = () => {
     }
     
     setError(displayMsg + suggestion);
+    setValidationErrors(rowErrors);
+    setValidationErrorPage(0);
     setBoxes([]);
     setRawRecords([]);
     setUploadSuccess(false);
@@ -360,6 +373,8 @@ const Home: React.FC = () => {
     logFrontendPerf("import-start", 0, { fileBytes: file.size }, perfId);
     setLoading(true);
     setError("");
+    setValidationErrors([]);
+    setValidationErrorPage(0);
     setEnrichedInfo(null);
     setImportStats(null);
     setUploadSuccess(false);
@@ -471,7 +486,10 @@ const Home: React.FC = () => {
           errorMessage = err.message;
         }
         
-        displayError(errorMessage);
+        const rowErrors = Array.isArray(err.response?.data?.validationErrors)
+          ? err.response.data.validationErrors
+          : [];
+        displayError(errorMessage, rowErrors);
         
       } finally {
         setUploading(false);
@@ -506,6 +524,8 @@ const Home: React.FC = () => {
     setFilters({});
     setFilename("");
     setError("");
+    setValidationErrors([]);
+    setValidationErrorPage(0);
     setEnrichedInfo(null);
     setSelectedYears([]);
     setAvailableYearsFromFile([]);
@@ -525,8 +545,14 @@ const Home: React.FC = () => {
     });
   };
 
+  const statisticsRecords = useMemo(() => filteredBoxes.flatMap(box => box.records), [filteredBoxes]);
   const hasData = boxes.length > 0 && uploadSuccess;
   const totalBoxes = filteredBoxes.length;
+  const validationErrorPages = Math.ceil(validationErrors.length / ERROR_PAGE_SIZE);
+  const visibleValidationErrors = validationErrors.slice(
+    validationErrorPage * ERROR_PAGE_SIZE,
+    (validationErrorPage + 1) * ERROR_PAGE_SIZE,
+  );
 
 
   return (
@@ -618,6 +644,40 @@ const Home: React.FC = () => {
                     <p className="text-sm text-red-600 font-mono whitespace-pre-line">
                       {error}
                     </p>
+                    {validationErrors.length > 0 && (
+                      <div className="mt-3 rounded border border-red-200 bg-white p-3">
+                        <ul className="space-y-1 font-mono text-xs text-red-700">
+                          {visibleValidationErrors.map((rowError, index) => (
+                            <li key={`${rowError.sheet}-${rowError.row}-${index}`}>
+                              Feuille « {rowError.sheet} », ligne {rowError.row}
+                            </li>
+                          ))}
+                        </ul>
+                        {validationErrorPages > 1 && (
+                          <div className="mt-3 flex items-center justify-between gap-3 border-t border-red-100 pt-3">
+                            <button
+                              type="button"
+                              onClick={() => setValidationErrorPage((page) => Math.max(0, page - 1))}
+                              disabled={validationErrorPage === 0}
+                              className="rounded border border-red-300 px-3 py-1 font-mono text-xs text-red-700 disabled:cursor-not-allowed disabled:opacity-40"
+                            >
+                              Précédent
+                            </button>
+                            <span className="font-mono text-xs text-red-600">
+                              Page {validationErrorPage + 1} sur {validationErrorPages} — {validationErrors.length} lignes
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setValidationErrorPage((page) => Math.min(validationErrorPages - 1, page + 1))}
+                              disabled={validationErrorPage >= validationErrorPages - 1}
+                              className="rounded border border-red-300 px-3 py-1 font-mono text-xs text-red-700 disabled:cursor-not-allowed disabled:opacity-40"
+                            >
+                              Suivant
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
                     {(error.includes("type") || error.includes("Pièce")) && (
                       <div className="mt-2 p-2 bg-red-100 rounded border border-red-300">
                         <p className="text-xs text-red-700 font-mono">
@@ -764,6 +824,7 @@ const Home: React.FC = () => {
       ) : (
         <>
           <SettingsPanel
+            statisticsRecords={statisticsRecords}
             fields={fields}
             filename={filename}
             total={totalBoxes}

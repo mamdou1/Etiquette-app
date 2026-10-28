@@ -1,3 +1,4 @@
+import { QrStatisticsSettings, defaultQrStatistics } from '../utils/qrStatistics';
 import React, { createContext, useContext, useState, ReactNode } from "react";
 import {
   ColumnCount,
@@ -10,6 +11,8 @@ import {
 } from "../types";
 
 interface SettingsContextValue {
+  qrStatistics: QrStatisticsSettings;
+  setQrStatistics: React.Dispatch<React.SetStateAction<QrStatisticsSettings>>;
   fieldRange: { enabled: boolean; from: string; to: string };
   setFieldRange: (value: { enabled: boolean; from: string; to: string }) => void;
   showQr: boolean;
@@ -70,6 +73,7 @@ const DEFAULT_FONT_STYLE: FontStyle = {
 export const SettingsProvider: React.FC<{ children: ReactNode }> = ({
   children,
 }) => {
+  const [qrStatistics, setQrStatistics] = useState(defaultQrStatistics);
   const [cols, setCols] = useState<ColumnCount>(2);
   const [size, setSize] = useState<LabelSize>("md");
   const [fontSize, setFontSize] = useState<FontSize>(DEFAULT_FONT_SIZE);
@@ -118,6 +122,7 @@ export const SettingsProvider: React.FC<{ children: ReactNode }> = ({
   return (
     <SettingsContext.Provider
       value={{
+        qrStatistics, setQrStatistics,
         fieldRange, setFieldRange,
         showQr, setShowQr,
         valueSpacing, setValueSpacing,
