@@ -178,7 +178,7 @@ const RecherchePage: React.FC = () => {
       </div>
 
       {/* ─── BARRE DE RECHERCHE ────────────────────────────────── */}
-      <div className="bg-white rounded-lg shadow-sm border border-border p-6 mb-6">
+      <div className="ui-card ui-card-raised p-6 mb-6">
         <form onSubmit={handleSearch} className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <div>
@@ -190,7 +190,7 @@ const RecherchePage: React.FC = () => {
                 onChange={(e) =>
                   setFilters({ ...filters, agence: e.target.value })
                 }
-                className="w-full border border-border px-3 py-2 rounded focus:outline-none focus:border-accent font-mono text-sm"
+                className="ui-field"
               >
                 <option value="">Tous les services producteurs</option>
                 {filterOptions.agences.map((agence) => (
@@ -210,7 +210,7 @@ const RecherchePage: React.FC = () => {
                 onChange={(e) =>
                   setFilters({ ...filters, type: e.target.value })
                 }
-                className="w-full border border-border px-3 py-2 rounded focus:outline-none focus:border-accent font-mono text-sm"
+                className="ui-field"
               >
                 <option value="">Tous les types</option>
                 {filterOptions.types.map((type) => (
@@ -230,7 +230,7 @@ const RecherchePage: React.FC = () => {
                 onChange={(e) =>
                   setFilters({ ...filters, annee: e.target.value })
                 }
-                className="w-full border border-border px-3 py-2 rounded focus:outline-none focus:border-accent font-mono text-sm"
+                className="ui-field"
               >
                 <option value="">Toutes les années</option>
                 {filterOptions.annees.map((annee) => (
@@ -252,7 +252,7 @@ const RecherchePage: React.FC = () => {
                   setFilters({ ...filters, numero_boite: e.target.value })
                 }
                 placeholder="Ex: BOX-001..."
-                className="w-full border border-border px-3 py-2 rounded focus:outline-none focus:border-accent font-mono text-sm"
+                className="ui-field"
               />
             </div>
 
@@ -267,7 +267,7 @@ const RecherchePage: React.FC = () => {
                   setFilters({ ...filters, valeur: e.target.value })
                 }
                 placeholder="Rechercher dans les valeurs..."
-                className="w-full border border-border px-3 py-2 rounded focus:outline-none focus:border-accent font-mono text-sm"
+                className="ui-field"
               />
             </div>
           </div>
@@ -277,7 +277,7 @@ const RecherchePage: React.FC = () => {
             <button
               type="button"
               onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-              className="text-accent hover:text-red-700 font-mono text-sm flex items-center gap-2 transition-colors"
+              className="ui-button ui-button-ghost ui-button-sm"
             >
               <span>{showAdvancedFilters ? "▼" : "▶"}</span>
               Filtres avancés (Rayon, Travers, Dates)
@@ -311,7 +311,7 @@ const RecherchePage: React.FC = () => {
                   onChange={(e) =>
                     setFilters({ ...filters, rayon: e.target.value })
                   }
-                  className="w-full border border-border px-3 py-2 rounded focus:outline-none focus:border-accent font-mono text-sm"
+                  className="ui-field"
                 >
                   <option value="">Tous les rayons</option>
                   {filterOptions.rayons.map((rayon) => (
@@ -331,7 +331,7 @@ const RecherchePage: React.FC = () => {
                   onChange={(e) =>
                     setFilters({ ...filters, travers: e.target.value })
                   }
-                  className="w-full border border-border px-3 py-2 rounded focus:outline-none focus:border-accent font-mono text-sm"
+                  className="ui-field"
                 >
                   <option value="">Tous les travers</option>
                   {filterOptions.travers.map((travers) => (
@@ -353,7 +353,7 @@ const RecherchePage: React.FC = () => {
                     setFilters({ ...filters, date_debut: e.target.value })
                   }
                   max={filters.date_fin || undefined}
-                  className="w-full border border-border px-3 py-2 rounded focus:outline-none focus:border-accent font-mono text-sm"
+                  className="ui-field"
                 />
               </div>
 
@@ -368,7 +368,7 @@ const RecherchePage: React.FC = () => {
                     setFilters({ ...filters, date_fin: e.target.value })
                   }
                   min={filters.date_debut || undefined}
-                  className="w-full border border-border px-3 py-2 rounded focus:outline-none focus:border-accent font-mono text-sm"
+                  className="ui-field"
                 />
               </div>
             </div>
@@ -378,7 +378,7 @@ const RecherchePage: React.FC = () => {
             <button
               type="submit"
               disabled={loading}
-              className="bg-accent hover:bg-red-700 disabled:bg-border disabled:cursor-not-allowed text-white px-6 py-2.5 rounded font-mono text-sm transition-colors flex items-center gap-2"
+              className="ui-button ui-button-primary"
             >
               <SearchIcon />
               {loading ? "⏳ Recherche..." : "🔍 Rechercher"}
@@ -386,7 +386,7 @@ const RecherchePage: React.FC = () => {
             <button
               type="button"
               onClick={resetFilters}
-              className="bg-surface hover:bg-border text-primary px-6 py-2.5 rounded font-mono text-sm transition-colors"
+              className="ui-button ui-button-secondary"
             >
               Réinitialiser
             </button>
@@ -694,7 +694,7 @@ const RecherchePage: React.FC = () => {
               <button
                 onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                 disabled={loading || currentPage === 1}
-                className="px-3 py-1 border border-border rounded text-sm font-mono disabled:opacity-50 hover:bg-surface transition-colors"
+                className="ui-button ui-button-secondary ui-button-sm"
               >
                 ◀ Précédent
               </button>
@@ -706,7 +706,7 @@ const RecherchePage: React.FC = () => {
                   setCurrentPage((p) => Math.min(totalPages, p + 1))
                 }
                 disabled={loading || currentPage === totalPages}
-                className="px-3 py-1 border border-border rounded text-sm font-mono disabled:opacity-50 hover:bg-surface transition-colors"
+                className="ui-button ui-button-secondary ui-button-sm"
               >
                 Suivant ▶
               </button>
@@ -715,7 +715,7 @@ const RecherchePage: React.FC = () => {
         </div>
       ) : (
         !loading && (
-          <div className="text-center py-12 bg-white rounded-lg border border-border">
+          <div className="ui-card ui-card-raised text-center py-12">
             <div className="text-5xl mb-4">🔎</div>
             <h3 className="text-lg font-medium text-muted">Aucun résultat</h3>
             <p className="text-sm text-muted/60 font-mono mt-1">

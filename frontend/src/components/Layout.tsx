@@ -11,63 +11,61 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const { user, logout } = useAuth();
 
   const navItems = [
-    { path: "/", label: "🏷️ Étiquettes" },
-    { path: "/agences", label: " Agences", icon: "🏢" },
-    { path: "/types-document", label: " Types", icon: "📄" },
-    { path: "/recherche", label: " Recherche", icon: "🔍" },
-    ...(user?.role === "admin" ? [{ path: "/utilisateurs", label: " Utilisateurs", icon: "👥" }] : []),
+    { path: "/", label: "Étiquettes" },
+    { path: "/agences", label: "Agences" },
+    { path: "/types-document", label: "Types"},
+    { path: "/recherche", label: "Recherche"},
+    ...(user?.role === "admin" ? [{ path: "/utilisateurs", label: "Utilisateurs"}] : []),
   ];
 
   return (
-    <div className="min-h-screen bg-[#f0ede8]">
+    <div className="min-h-screen bg-background">
       {/* ─── HEADER ───────────────────────────────────────────── */}
-      <header className="no-print bg-primary text-white shadow-lg sticky top-0 z-50">
-        <div className="px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
+      <header className="no-print sticky top-0 z-50 bg-header text-header-text shadow-lg">
+        <div className="mx-auto max-w-screen-2xl px-3 sm:px-6 lg:px-8">
+          <div className="flex min-h-16 flex-wrap items-center justify-between gap-x-3 gap-y-2 py-2 lg:flex-nowrap">
             {/* Logo */}
-            <Link to="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
-              <div className="bg-accent w-10 h-10 rounded-lg flex items-center justify-center font-mono font-bold text-sm shadow-md">
+            <Link to="/" aria-label="Étiquettes, accueil" className="flex shrink-0 items-center gap-2.5 rounded-md transition-opacity duration-200 hover:opacity-85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-header-text/70 focus-visible:ring-offset-2 focus-visible:ring-offset-header motion-reduce:transition-none sm:gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-header-active font-mono text-sm font-bold shadow-md sm:h-10 sm:w-10">
                 ÉT
               </div>
               <div>
-                <span className="font-mono font-bold text-lg tracking-tight">Étiquettes</span>
-                <span className="hidden sm:inline text-white/50 text-xs font-mono ml-2">v1.0</span>
+                <span className="font-sans text-base font-bold tracking-tight sm:text-lg">Étiquettes</span>
+                <span className="ml-2 hidden font-mono text-xs text-header-text/50 sm:inline">v1.0</span>
               </div>
             </Link>
 
             {/* Navigation */}
-            <nav className="flex items-center gap-5 sm:gap-5">
+            <nav aria-label="Navigation principale" className="order-3 flex w-full max-w-full items-center gap-1 overflow-x-auto pb-0.5 lg:order-none lg:w-auto lg:flex-1 lg:justify-center lg:overflow-visible">
               {navItems.map((item) => {
-                const isActive = location.pathname === item.path;
+                const isActive = location.pathname === item.path ||
+                  (item.path !== "/" && location.pathname.startsWith(`${item.path}/`));
                 return (
                   <Link
                     key={item.path}
                     to={item.path}
-                    className={`px-3 sm:px-4 py-2 rounded-lg font-mono text-sm transition-all flex items-center gap-2
-                      ${
-                        isActive
-                          ? "bg-accent text-white shadow-md"
-                          : "text-white/70 hover:text-white hover:bg-white/10"
-                      }
-                    `}
+                    aria-label={item.label}
+                    aria-current={isActive ? "page" : undefined}
+                    title={item.label}
+                    className="app-header-nav-link"
                   >
-                    <span className="text-base">{item.icon}</span>
-                    <span className="hidden sm:inline">{item.label}</span>
+                    {/* <span aria-hidden="true" className="text-base">{item.icon}</span> */}
+                    <span className="hidden md:inline">{item.label}</span>
                   </Link>
                 );
               })}
             </nav>
 
             {/* Info utilisateur */}
-            <div className="flex items-center gap-3">
-              <span className="text-white/40 text-xs font-mono hidden md:inline">
+            <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+              <span className="hidden font-mono text-xs text-header-text/50 lg:inline">
                 {new Date().toLocaleDateString("fr-FR")}
               </span>
-              <div className="hidden sm:block text-right leading-tight">
-                <p className="text-xs font-mono">{user?.nom}</p>
-                <button onClick={logout} className="text-[10px] font-mono text-white/50 hover:text-white">Déconnexion</button>
+              <div className="hidden text-right leading-tight sm:block">
+                <p className="max-w-36 truncate font-sans text-xs font-medium">{user?.nom}</p>
+                <button type="button" onClick={logout} className="mt-0.5 rounded-sm font-mono text-[10px] text-header-text/60 transition-colors duration-150 hover:text-header-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-header-text/70 motion-reduce:transition-none">Déconnexion</button>
               </div>
-              <div className="w-8 h-8 rounded-full bg-accent/30 flex items-center justify-center text-sm font-mono font-bold">
+              <div aria-hidden="true" className="flex h-8 w-8 items-center justify-center rounded-full bg-header-active/30 font-mono text-sm font-bold ring-1 ring-header-text/15">
                 {user?.nom?.charAt(0).toUpperCase() || "U"}
               </div>
             </div>

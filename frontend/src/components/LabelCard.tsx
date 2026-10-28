@@ -240,43 +240,10 @@ const LabelCard: React.FC<Props> = ({
       );
       return isAgence ? "Service Producteur" : label;
     };
-    // Les lignes sources conservent les associations dossier / nature / date.
-    try {
-      const rows = JSON.parse(String(record.__sourceRows || "null"));
-      if (
-        Array.isArray(rows) &&
-        rows.length > 0 &&
-        rows.every((row) => row && typeof row === "object")
-      ) {
-        const keys = Array.from(
-          new Set<string>(rows.flatMap((row) => Object.keys(row))),
-        ).filter((key) => !key.startsWith("_") && key !== "metaValues");
-        const isBox = isBoxField;
-        const fields = keys.filter((key) => !isBox(key));
-        const label = (key: string) =>
-          qrLabel(
-            key,
-            metaFields.find((field) => field.name === key)?.label || key,
-          );
-        const text = (row: any, key: string) => String(row[key] ?? "");
-        const detail = fields.filter(
-          (key) =>
-            /dossier|nature|date/.test(normalizeText(key)) ||
-            rows.some((row) => text(row, key) !== text(rows[0], key)),
-        );
-        const common = fields.filter((key) => !detail.includes(key));
-        return [
-          `N° Boîte : ${boxNumber}`,
-          ...common.map((key) => `${label(key)} : ${text(rows[0], key)}`),
-          "",
-          detail.map(label).join(" | "),
-          ...rows.map((row) => detail.map((key) => text(row, key)).join(" | ")),
-        ].join("\n\n");
-      }
-    } catch {
-      /* Les anciennes données restent lisibles dans leur format enregistré. */
-    }
-    const lines: string[] = [`• N° Boîte : ${boxNumber}`];
+    const lines: string[] = [
+      `• N° Boîte : ${boxNumber}`,
+      `• Nombre de dossiers : ${Math.max(1, Number(record.__dossierCount) || 1)}`,
+    ];
 
     const fieldsToUse =
       metaFields.length > 0

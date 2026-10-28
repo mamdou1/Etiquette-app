@@ -51,6 +51,7 @@ const PrintPreview = React.forwardRef<PrintPreviewHandle, Props>(({
   const previewRootRef = useRef<HTMLDivElement>(null);
   const printRootRef = useRef<HTMLDivElement>(null);
   const [currentPage, setCurrentPage] = useState(0);
+  const [pageInput, setPageInput] = useState("1");
   const [preparingPrint, setPreparingPrint] = useState(false);
   const preparingPrintRef = useRef(false);
   const buttonPrintPendingRef = useRef(false);
@@ -150,6 +151,10 @@ const PrintPreview = React.forwardRef<PrintPreviewHandle, Props>(({
   }, [totalPages]);
 
   useEffect(() => {
+    setPageInput(totalPages > 0 ? String(safeCurrentPage + 1) : "0");
+  }, [safeCurrentPage, totalPages]);
+
+  useEffect(() => {
     if (!preparingPrint || !buttonPrintPendingRef.current) return;
     let secondFrame = 0;
     const firstFrame = window.requestAnimationFrame(() => {
@@ -213,7 +218,18 @@ const PrintPreview = React.forwardRef<PrintPreviewHandle, Props>(({
 
   const navigateToPage = (page: number) => {
     pageChangeStartedAt.current = perfNow();
-    setCurrentPage(Math.max(0, Math.min(totalPages - 1, page)));
+    setCurrentPage(Math.max(0, Math.min(Math.max(0, totalPages - 1), page)));
+  };
+
+  const commitPageInput = () => {
+    const requestedPage = Number(pageInput);
+    if (!Number.isInteger(requestedPage) || requestedPage < 1 || totalPages === 0) {
+      setPageInput(totalPages > 0 ? String(safeCurrentPage + 1) : "0");
+      return;
+    }
+    const boundedPage = Math.min(requestedPage, totalPages);
+    setPageInput(String(boundedPage));
+    navigateToPage(boundedPage - 1);
   };
 
   const onPreviewRender: React.ProfilerOnRenderCallback = (_id, phase, actualDuration, baseDuration) => {
@@ -275,7 +291,7 @@ const PrintPreview = React.forwardRef<PrintPreviewHandle, Props>(({
 
   return (
     <React.Profiler id="label-preview" onRender={onPreviewRender}>
-    <div className="preview-screen print-container bg-[#f0ede8]">
+    <div className="preview-screen print-container bg-background">
     <div ref={previewRootRef} className="flex-1 p-8 overflow-y-auto preview-screen-content">
       <div className="no-print flex-wrap gap-6 mb-5 font-mono text-xs text-muted">
         <span>
@@ -295,13 +311,37 @@ const PrintPreview = React.forwardRef<PrintPreviewHandle, Props>(({
         <span>
           <strong className="text-primary">{itemsPerPage}</strong> étiquettes/page
         </span>
-        <div className="preview-pagination no-print" role="navigation" aria-label="Navigation de l’aperçu">
-          <button type="button" onClick={() => navigateToPage(safeCurrentPage - 1)} disabled={safeCurrentPage === 0}>← Précédent</button>
-          <label>Page <input aria-label="Numéro de page" type="number" min={1} max={Math.max(1, totalPages)} value={totalPages ? safeCurrentPage + 1 : 0} disabled={!totalPages} onChange={event => {
-            const page = Number(event.target.value);
-            if (Number.isFinite(page) && page >= 1 && page <= totalPages) navigateToPage(page - 1);
-          }} /> / {totalPages}</label>
-          <button type="button" onClick={() => navigateToPage(safeCurrentPage + 1)} disabled={safeCurrentPage >= totalPages - 1}>Suivant →</button>
+        <div className="preview-pagination no-print flex flex-wrap items-center gap-2" role="navigation" aria-label="Navigation de l’aperçu">
+          <button type="button" className="ui-button ui-button-secondary ui-button-sm" onClick={() => navigateToPage(0)} disabled={!totalPages || safeCurrentPage === 0} aria-label="Première page">|&lt;&lt; Première</button>
+          <button type="button" className="ui-button ui-button-secondary ui-button-sm" onClick={() => navigateToPage(safeCurrentPage - 1)} disabled={!totalPages || safeCurrentPage === 0} aria-label="Page précédente">&lt; Précédente</button>
+          <label className="flex items-center gap-2" htmlFor="preview-page-number">
+            Page
+            <input
+              id="preview-page-number"
+              aria-label="Numéro de page"
+              className="ui-field ui-field-sm w-20 text-center"
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              value={pageInput}
+              disabled={!totalPages}
+              onChange={event => {
+                const value = event.target.value;
+                if (/^\d*$/.test(value)) setPageInput(value);
+              }}
+              onBlur={commitPageInput}
+              onKeyDown={event => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  commitPageInput();
+                  event.currentTarget.blur();
+                }
+              }}
+            />
+            / {totalPages}
+          </label>
+          <button type="button" className="ui-button ui-button-secondary ui-button-sm" onClick={() => navigateToPage(safeCurrentPage + 1)} disabled={!totalPages || safeCurrentPage >= totalPages - 1} aria-label="Page suivante">Suivante &gt;</button>
+          <button type="button" className="ui-button ui-button-secondary ui-button-sm" onClick={() => navigateToPage(totalPages - 1)} disabled={!totalPages || safeCurrentPage >= totalPages - 1} aria-label="Dernière page">Dernière &gt;&gt;|</button>
         </div>
         {displayYears.length > 0 && (
           <span>

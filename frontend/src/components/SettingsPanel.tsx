@@ -166,7 +166,7 @@ const SettingsPanel: React.FC<Props> = ({
             height="13"
             viewBox="0 0 24 24"
             fill="none"
-            stroke="#e63946"
+            stroke="rgb(var(--color-accent))"
             strokeWidth="2.5"
           >
             <polyline points="20 6 9 17 4 12" />
@@ -180,7 +180,7 @@ const SettingsPanel: React.FC<Props> = ({
         </p>
         <button
           onClick={onReset}
-          className="w-full border border-border text-muted text-xs font-mono py-2 hover:border-muted transition-colors"
+          className="ui-button ui-button-secondary ui-button-sm w-full"
         >
           Changer de fichier
         </button>
@@ -263,7 +263,7 @@ const SettingsPanel: React.FC<Props> = ({
                       onChange={(event) =>
                         updateFilter(field, "from", event.target.value)
                       }
-                      className="w-full min-w-0 border border-border bg-white px-2 py-2 font-mono text-[11px] outline-none focus:border-accent"
+                      className="ui-field ui-field-sm min-w-0"
                       title={`Date de debut pour ${fieldLabel}`}
                     />
                     <input
@@ -272,7 +272,7 @@ const SettingsPanel: React.FC<Props> = ({
                       onChange={(event) =>
                         updateFilter(field, "to", event.target.value)
                       }
-                      className="w-full min-w-0 border border-border bg-white px-2 py-2 font-mono text-[11px] outline-none focus:border-accent"
+                      className="ui-field ui-field-sm min-w-0"
                       title={`Date de fin pour ${fieldLabel}`}
                     />
                   </div>
@@ -284,7 +284,7 @@ const SettingsPanel: React.FC<Props> = ({
                       updateFilter(field, "value", event.target.value)
                     }
                     placeholder="Contient..."
-                    className="w-full border border-border bg-white px-2 py-2 font-mono text-xs outline-none focus:border-accent"
+                    className="ui-field ui-field-sm"
                   />
                 )}
               </div>
@@ -346,7 +346,7 @@ const SettingsPanel: React.FC<Props> = ({
                         width="10"
                         height="10"
                         viewBox="0 0 12 12"
-                        fill="#9e9b95"
+                        fill="rgb(var(--color-text-subtle))"
                         className="flex-shrink-0 opacity-40"
                       >
                         <circle cx="3" cy="2" r="1" />
@@ -384,7 +384,7 @@ const SettingsPanel: React.FC<Props> = ({
                     <div
                       key={`hidden-${key}`}
                       onClick={() => toggleField(key)}
-                      className="flex items-center justify-between px-3 py-2 border cursor-pointer select-none transition-colors bg-white border-border hover:bg-[#f0eeea]"
+                      className="flex items-center justify-between px-3 py-2 border cursor-pointer select-none transition-colors bg-white border-border hover:bg-surface-muted"
                     >
                       <span className="font-mono text-xs font-medium text-muted">
                         {fieldLabel}
@@ -417,7 +417,7 @@ const SettingsPanel: React.FC<Props> = ({
           ))}
         </div>
         <label className="block mt-3 text-xs" htmlFor="label-layout">Disposition</label>
-        <select id="label-layout" value={labelLayout} onChange={e => setLabelLayout(e.target.value as 'auto' | 'row')} className="w-full border border-border rounded p-2 mt-1 text-sm">
+        <select id="label-layout" value={labelLayout} onChange={e => setLabelLayout(e.target.value as 'auto' | 'row')} className="ui-field mt-1">
           <option value="auto">Automatique (2 rangées à partir de 4)</option>
           <option value="row">Toutes côte à côte</option>
         </select>
@@ -446,7 +446,7 @@ const SettingsPanel: React.FC<Props> = ({
         <label htmlFor="box-prefix" className="block text-xs mb-1">Libellé avant le numéro</label>
         <input id="box-prefix" type="text" list="box-prefix-options" value={boxPrefix}
           onChange={e => setBoxPrefix(e.target.value)} placeholder="Boîte N°"
-          className="w-full border border-border rounded p-2 text-sm" />
+          className="ui-field" />
         <datalist id="box-prefix-options"><option value="Boîte N°" /><option value="N° Chrono" /><option value="Box" /></datalist>
         <div className="mt-4 border-t border-border pt-3">
           <label className="flex items-center gap-2 text-sm">
@@ -455,12 +455,12 @@ const SettingsPanel: React.FC<Props> = ({
           </label>
           {fieldRange.enabled && <div className="mt-2 space-y-2">
             <label className="block text-xs" htmlFor="range-from">Champ de début</label>
-            <select id="range-from" value={fields.includes(fieldRange.from) ? fieldRange.from : ''} onChange={e => setFieldRange({ ...fieldRange, from: e.target.value })} className="w-full border rounded p-2 text-sm">
+            <select id="range-from" value={fields.includes(fieldRange.from) ? fieldRange.from : ''} onChange={e => setFieldRange({ ...fieldRange, from: e.target.value })} className="ui-field">
               <option value="">Choisir un champ</option>
               {fields.map(field => <option key={field} value={field} disabled={field === fieldRange.to}>{metaFields.find(mf => mf.name === field)?.label || field}</option>)}
             </select>
             <label className="block text-xs" htmlFor="range-to">Champ de fin</label>
-            <select id="range-to" value={fields.includes(fieldRange.to) ? fieldRange.to : ''} onChange={e => setFieldRange({ ...fieldRange, to: e.target.value })} className="w-full border rounded p-2 text-sm">
+            <select id="range-to" value={fields.includes(fieldRange.to) ? fieldRange.to : ''} onChange={e => setFieldRange({ ...fieldRange, to: e.target.value })} className="ui-field">
               <option value="">Choisir un champ</option>
               {fields.map(field => <option key={field} value={field} disabled={field === fieldRange.from}>{metaFields.find(mf => mf.name === field)?.label || field}</option>)}
             </select>
@@ -562,7 +562,7 @@ const SettingsPanel: React.FC<Props> = ({
             <select
               value={fontFamily}
               onChange={(e) => setFontFamily(e.target.value)}
-              className="w-full border border-border bg-white px-2 py-2 font-mono text-sm outline-none focus:border-accent"
+              className="ui-field"
             >
               {[
                 "Arial",
@@ -690,7 +690,7 @@ const SettingsPanel: React.FC<Props> = ({
         <button
           onClick={onPrint}
           disabled={total === 0}
-          className="w-full bg-accent hover:bg-red-700 disabled:bg-border disabled:text-muted disabled:cursor-not-allowed text-white py-3 font-bold text-sm flex items-center justify-center gap-2 transition-colors"
+          className="ui-button ui-button-primary ui-button-block ui-button-lg"
         >
           <svg
             width="17"

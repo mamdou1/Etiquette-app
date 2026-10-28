@@ -24,6 +24,7 @@ export const labelToRecord = (label: StoredLabel): LabelRecord => ({
   __typeId: String(label.type_document_id),
   __boxField: label.boxField,
   __sourceRows: JSON.stringify(label.rows),
+  __dossierCount: String(Array.isArray(label.rows) ? label.rows.length : 1),
   __qrEnabled: label.qrEnabled === null ? '' : String(label.qrEnabled),
   __qrSize: label.qrSize === null ? '' : String(label.qrSize),
 });

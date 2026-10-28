@@ -109,6 +109,34 @@ function detectHeaders(rows) {
   return 0;
 }
 
+// Excel peut conserver une plage utilisée beaucoup plus grande que les
+// cellules qui contiennent réellement des valeurs (par exemple après un
+// formatage accidentel de colonnes entières). sheet_to_json matérialise alors
+// toute cette zone vide. On borne sa plage à la dernière cellule renseignée.
+function getPopulatedRange(worksheet) {
+  const reference = worksheet["!ref"];
+  const declaredRange = reference ? XLSX.utils.decode_range(reference) : null;
+  let minRow = declaredRange?.s.r ?? Infinity;
+  let minColumn = declaredRange?.s.c ?? Infinity;
+  let maxRow = declaredRange?.s.r ?? -1;
+  let maxColumn = declaredRange?.s.c ?? -1;
+
+  for (const address of Object.keys(worksheet)) {
+    if (!/^[A-Z]{1,3}\d+$/i.test(address)) continue;
+    const cell = worksheet[address];
+    if (!cell || ((cell.v === undefined || cell.v === null || cell.v === "") && !cell.f)) continue;
+
+    const { r, c } = XLSX.utils.decode_cell(address);
+    minRow = Math.min(minRow, r);
+    minColumn = Math.min(minColumn, c);
+    maxRow = Math.max(maxRow, r);
+    maxColumn = Math.max(maxColumn, c);
+  }
+
+  if (maxRow < 0 || maxColumn < 0) return null;
+  return { s: { r: minRow, c: minColumn }, e: { r: maxRow, c: maxColumn } };
+}
+
 // ✅ Fonction pour lire une seule feuille
 function parseSheet(worksheet, sheetName, perf, sheetIndex) {
   const sheetStartedAt = now();
@@ -116,17 +144,36 @@ function parseSheet(worksheet, sheetName, perf, sheetIndex) {
     throw new Error(`La feuille "${sheetName}" n'a pu être lue`);
   }
 
-  const allRows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+  const rangeScanStartedAt = now();
+  const populatedRange = getPopulatedRange(worksheet);
+  const rangeScanMs = elapsed(rangeScanStartedAt);
+  if (!populatedRange) {
+    return { data: [], fields: [], year: extractYearFromSheetName(sheetName) };
+  }
 
-  if (!allRows.length) {
+  const headerScanStartedAt = now();
+  const headerScanRange = {
+    s: populatedRange.s,
+    e: {
+      r: Math.min(populatedRange.e.r, populatedRange.s.r + 9),
+      c: populatedRange.e.c,
+    },
+  };
+  const headerRows = XLSX.utils.sheet_to_json(worksheet, {
+    header: 1,
+    range: headerScanRange,
+  });
+  const headerScanMs = elapsed(headerScanStartedAt);
+
+  if (!headerRows.length) {
     return { data: [], fields: [], year: extractYearFromSheetName(sheetName) };
   }
 
   const headerStartedAt = now();
-  const headerRowIndex = detectHeaders(allRows);
+  const headerRowIndex = detectHeaders(headerRows);
   const headerDetectionMs = elapsed(headerStartedAt);
 
-  const headers = allRows[headerRowIndex]
+  const headers = (headerRows[headerRowIndex] || [])
     .map((h) => (h ? String(h).trim() : ""))
     .filter((h) => h);
 
@@ -134,9 +181,28 @@ function parseSheet(worksheet, sheetName, perf, sheetIndex) {
     return { data: [], fields: [], year: extractYearFromSheetName(sheetName) };
   }
 
+  // L'ancien code utilisait headers.length valeurs par ligne. Fixer cette
+  // largeur évite que sheet_to_json développe des milliers de colonnes vides
+  // si une cellule isolée étend la plage Excel vers la droite.
+  const dataStartRow = populatedRange.s.r + headerRowIndex + 1;
+  const dataRange = dataStartRow <= populatedRange.e.r
+    ? {
+        s: { r: dataStartRow, c: populatedRange.s.c },
+        e: {
+          r: populatedRange.e.r,
+          c: Math.min(populatedRange.e.c, populatedRange.s.c + headers.length - 1),
+        },
+      }
+    : null;
+  const dataToJsonStartedAt = now();
+  const allRows = dataRange
+    ? XLSX.utils.sheet_to_json(worksheet, { header: 1, range: dataRange })
+    : [];
+  const dataToJsonMs = elapsed(dataToJsonStartedAt);
+
   const data = [];
-  for (let i = headerRowIndex + 1; i < allRows.length; i++) {
-    const row = allRows[i];
+  const rowTransformStartedAt = now();
+  for (const row of allRows) {
     if (!row?.some((cell) => cell && String(cell).trim())) continue;
 
     const record = {};
@@ -145,6 +211,7 @@ function parseSheet(worksheet, sheetName, perf, sheetIndex) {
     });
     data.push(record);
   }
+  const rowTransformMs = elapsed(rowTransformStartedAt);
 
   const result = {
     data,
@@ -153,9 +220,16 @@ function parseSheet(worksheet, sheetName, perf, sheetIndex) {
   };
   if (perf) perf.log('excel-sheet-processing', elapsed(sheetStartedAt), {
     sheetIndex,
-    rowsExamined: allRows.length,
+    rowsExamined: populatedRange.e.r - populatedRange.s.r + 1,
+    dataRowsExamined: allRows.length,
     dataRows: data.length,
     fields: headers.length,
+    rangeScanMs: Number(rangeScanMs.toFixed(2)),
+    headerScanMs: Number(headerScanMs.toFixed(2)),
+    dataToJsonMs: Number(dataToJsonMs.toFixed(2)),
+    rowTransformMs: Number(rowTransformMs.toFixed(2)),
+    boundedRows: populatedRange.e.r - populatedRange.s.r + 1,
+    boundedColumns: populatedRange.e.c - populatedRange.s.c + 1,
     headerDetectionMs: Number(headerDetectionMs.toFixed(2)),
   });
   return result;

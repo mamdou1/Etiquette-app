@@ -1,6 +1,13 @@
 // Marge sous la capacité maximale en mode octets, correction M.
 export const QR_BYTE_LIMIT = 2200;
 const byteLength = (value: string) => new TextEncoder().encode(value).length;
+const characterByteLength = (character: string) => {
+  const codePoint = character.codePointAt(0) ?? 0;
+  if (codePoint <= 0x7f) return 1;
+  if (codePoint <= 0x7ff) return 2;
+  if (codePoint <= 0xffff) return 3;
+  return 4;
+};
 
 export function splitQrContent(value: string, boxNumber: string): { parts: string[]; error?: string } {
   if (byteLength(value) <= QR_BYTE_LIMIT) return { parts: [value] };
@@ -18,7 +25,7 @@ export function splitQrContent(value: string, boxNumber: string): { parts: strin
   let lineSplit = 0;
   let lineDistance = Infinity;
   for (const char of value) {
-    bytes += byteLength(char);
+    bytes += characterByteLength(char);
     offset += char.length;
     if (bytes > capacity || total - bytes > capacity) continue;
     const delta = Math.abs(total / 2 - bytes);

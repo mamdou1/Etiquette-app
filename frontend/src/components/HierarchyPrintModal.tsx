@@ -41,7 +41,7 @@ const HierarchyPrintModal: React.FC<HierarchyPrintModalProps> = ({
             <div className="flex gap-3">
               <button
                 onClick={() => window.print()}
-                className="bg-accent hover:bg-red-700 text-white px-4 py-2 rounded font-mono text-sm transition-colors flex items-center gap-2"
+                className="bg-accent hover:bg-accent-hover text-white px-4 py-2 rounded font-mono text-sm transition-colors flex items-center gap-2"
               >
                 🖨️ Imprimer
               </button>

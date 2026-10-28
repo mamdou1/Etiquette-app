@@ -1,6 +1,5 @@
 import { labelToRecord, StoredLabel } from '../services/labelService';
 import React, { useCallback, useMemo, useRef, useState, useEffect } from "react";
-import * as XLSX from "xlsx";
 import { isBoxField } from '../utils/boxField';
 import FileUpload from "../components/FileUpload";
 import SettingsPanel from "../components/SettingsPanel";
@@ -126,115 +125,9 @@ function recordMatchesSelectedYears(
   return false;
 }
 
-function extractYearFromSheetName(sheetName: string): string | null {
-  const match = sheetName.match(/\b(20\d{2})\b/);
-  return match ? match[1] : null;
-}
-
 function extractYearFromBoxNumber(boxNumber: string): string | null {
   const match = boxNumber.match(/\/(20\d{2})/);
   return match ? match[1] : null;
-}
-
-function detectHeaders(rows: any[][]): number {
-  for (let i = 0; i < Math.min(rows.length, 10); i++) {
-    const row = rows[i];
-    const nonEmptyCells = row.filter((cell: any) => cell && String(cell).trim());
-
-    if (nonEmptyCells.length >= 3) {
-      const textCount = nonEmptyCells.filter(
-        (cell: any) => isNaN(cell) && String(cell).length > 2,
-      ).length;
-
-      if (textCount >= nonEmptyCells.length * 0.5) {
-        return i;
-      }
-    }
-  }
-  return 0;
-}
-
-function cleanCellValue(header: string, value: unknown): string {
-  if (value == null) return "";
-
-  if (value instanceof Date && !Number.isNaN(value.getTime())) {
-    return value.toLocaleDateString("fr-FR");
-  }
-
-  const rawValue = String(value).trim();
-  if (
-    isDateField(header) &&
-    (typeof value === "number" || /^\d+(\.\d+)?$/.test(rawValue))
-  ) {
-    const serial = typeof value === "number" ? value : Number(value);
-    if (Number.isFinite(serial)) {
-      const parsed = XLSX.SSF.parse_date_code(serial);
-      if (parsed) {
-        const d = String(parsed.d).padStart(2, "0");
-        const m = String(parsed.m).padStart(2, "0");
-        return `${d}/${m}/${parsed.y}`;
-      }
-    }
-  }
-
-  return rawValue;
-}
-
-function detectBoxField(headers: string[], records: LabelRecord[]): string {
-  const explicitBoxField = headers.find(isBoxField);
-  if (explicitBoxField) return explicitBoxField;
-  if (headers.length === 0) return "";
-  if (records.length === 0) return headers[0];
-
-  const STRONG_BOX_KEYWORDS = [
-    "boîte", "boite", "box", "n°", "nº",
-    "lot", "pack", "carton", "caisse", "colis",
-  ];
-  const WEAK_BOX_KEYWORDS = [
-    "numero", "numéro", "number", "no", "n°", "nº",
-    "id", "identifiant", "reference", "référence", "ref",
-    "ident", "unité", "unite", "dossier", "code", "contenant",
-  ];
-
-  let bestField = headers[0];
-  let bestScore = -1;
-
-  for (const header of headers) {
-    const nh = normalizeText(header);
-
-    const personFields = [
-      "caissier", "caissiers", "caissiere", "preparateur", "prep",
-      "nom", "prenom", "responsable", "agent", "employe", "employé", "personne",
-    ];
-    const isPersonField = personFields.some((kw) => nh.includes(kw));
-    const personPenalty = isPersonField ? 50 : 0;
-
-    const isDate = DATE_FIELD_RE.test(nh) || nh.includes("jour") || nh.includes("date");
-    const datePenalty = isDate ? 100 : 0;
-
-    const strongMatch = STRONG_BOX_KEYWORDS.some((kw) => nh.includes(kw) || kw.includes(nh));
-    const strongBonus = strongMatch ? 10.0 : 0;
-
-    const weakMatch = WEAK_BOX_KEYWORDS.some((kw) => nh.includes(kw));
-    const weakBonus = weakMatch ? 2.0 : 0;
-
-    const values = records.map((r) => String(r[header] ?? "").trim());
-    const uniqueCount = new Set(values).size;
-    const totalCount = values.length;
-    const duplicateRatio = uniqueCount > 0 ? 1 - uniqueCount / totalCount : 0;
-
-    const boxPatternCount = values.filter((v) => /^\d+[/]\d+/.test(v)).length;
-    const boxPatternBonus = boxPatternCount > totalCount * 0.5 ? 5.0 : 0;
-
-    const score = strongBonus + weakBonus + duplicateRatio + boxPatternBonus - datePenalty - personPenalty;
-
-    if (score > bestScore) {
-      bestScore = score;
-      bestField = header;
-    }
-  }
-
-  return bestField;
 }
 
 function mergeRecords(records: LabelRecord[]): LabelRecord[] {
@@ -292,163 +185,6 @@ function groupByBox(records: LabelRecord[], boxField: string): BoxGroup[] {
       }
       return a.boxNumber.localeCompare(b.boxNumber, undefined, { numeric: true });
     });
-}
-
-function parseExcelToBoxes(file: File, perfId: string): Promise<{
-  filename: string;
-  boxes: BoxGroup[];
-  records: LabelRecord[];
-  fields: string[];
-  boxKey: string;
-  availableYears: string[];
-  sheetData: { [sheetName: string]: { boxes: BoxGroup[]; records: LabelRecord[]; year: string } };
-}> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    const fileReadStartedAt = perfNow();
-    reader.onload = (e) => {
-      try {
-        logFrontendPerf("file-read-browser", perfNow() - fileReadStartedAt, { fileBytes: file.size }, perfId);
-        const data = new Uint8Array(e.target?.result as ArrayBuffer);
-        const xlsxStartedAt = perfNow();
-        const workbook = XLSX.read(data, { type: "array" });
-        logFrontendPerf("xlsx-parse-browser", perfNow() - xlsxStartedAt, { sheets: workbook.SheetNames.length }, perfId);
-        const sheetNames = workbook.SheetNames;
-
-        if (!sheetNames.length) {
-          throw new Error("Le fichier Excel ne contient aucune feuille");
-        }
-
-        let allRecords: LabelRecord[] = [];
-        let allFields = new Set<string>();
-        const allBoxes: BoxGroup[] = [];
-        const sheetData: { [sheetName: string]: { boxes: BoxGroup[]; records: LabelRecord[]; year: string } } = {};
-        const availableYearsSet = new Set<string>();
-        let rowsExamined = 0;
-        let rowsAccepted = 0;
-        let sheetJsonMs = 0;
-        let groupingMs = 0;
-        const transformStartedAt = perfNow();
-
-        for (const sheetName of sheetNames) {
-          const worksheet = workbook.Sheets[sheetName];
-          if (!worksheet) continue;
-
-          const sheetJsonStartedAt = perfNow();
-          const allRows: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-          sheetJsonMs += perfNow() - sheetJsonStartedAt;
-          if (!allRows.length) continue;
-          rowsExamined += allRows.length;
-
-          const headerRowIndex = detectHeaders(allRows);
-          const headers = allRows[headerRowIndex]
-            .map((h: any) => (h ? String(h).trim() : ""))
-            .filter((h: string) => h);
-
-          if (headers.length === 0) continue;
-
-          const records: LabelRecord[] = [];
-          for (let i = headerRowIndex + 1; i < allRows.length; i++) {
-            const row = allRows[i];
-            if (!row?.some((cell: any) => cell && String(cell).trim())) continue;
-            const record: LabelRecord = {};
-            headers.forEach((header: string, idx: number) => {
-              record[header] = cleanCellValue(header, row[idx] ?? "");
-            });
-            records.push(record);
-          }
-
-          if (records.length === 0) continue;
-          rowsAccepted += records.length;
-
-          let year = extractYearFromSheetName(sheetName) || '';
-          
-          if (!year) {
-            const yearField = headers.find(h => 
-              normalizeText(h).includes("annee") || 
-              normalizeText(h).includes("year")
-            );
-            if (yearField && records.length > 0) {
-              const firstYear = String(records[0][yearField] || "").trim();
-              const match = firstYear.match(/\b(20\d{2})\b/);
-              if (match) year = match[1];
-            }
-          }
-
-          if (!year) {
-            const boxKey = detectBoxField(headers, records);
-            if (boxKey && records.length > 0) {
-              const firstBox = String(records[0][boxKey] || "").trim();
-              const extractedYear = extractYearFromBoxNumber(firstBox);
-              if (extractedYear) year = extractedYear;
-            }
-          }
-
-          if (!year) {
-            year = 'Sans année';
-          }
-
-          const recordsWithYear = records.map(record => ({
-            ...record,
-            _sheetName: sheetName,
-            _sheetYear: year
-          }));
-
-          allRecords.push(...recordsWithYear);
-          headers.forEach(h => allFields.add(h));
-
-          const groupingStartedAt = perfNow();
-          const boxKey = detectBoxField(headers, recordsWithYear);
-          const boxes = groupByBox(recordsWithYear, boxKey);
-          groupingMs += perfNow() - groupingStartedAt;
-          allBoxes.push(...boxes);
-
-          sheetData[sheetName] = {
-            boxes: boxes,
-            records: recordsWithYear,
-            year: year
-          };
-
-          if (year !== 'Sans année') {
-            availableYearsSet.add(year);
-          }
-        }
-
-        if (allRecords.length === 0) {
-          throw new Error("Aucune donnée valide trouvée dans le fichier");
-        }
-
-        const allHeaders = Array.from(allFields);
-        const boxKey = detectBoxField(allHeaders, allRecords);
-        const availableYears = Array.from(availableYearsSet).sort();
-
-        logFrontendPerf("excel-data-preparation-browser", perfNow() - transformStartedAt, {
-          sheets: sheetNames.length,
-          rowsExamined,
-          rowsAccepted,
-          boxes: allBoxes.length,
-          fields: allHeaders.length,
-          sheetJsonMs: Number(sheetJsonMs.toFixed(2)),
-          groupingMs: Number(groupingMs.toFixed(2)),
-          totalMs: Number((perfNow() - fileReadStartedAt).toFixed(2)),
-        }, perfId);
-
-        resolve({
-          filename: file.name,
-          boxes: allBoxes,
-          records: allRecords,
-          fields: allHeaders,
-          boxKey,
-          availableYears,
-          sheetData,
-        });
-      } catch (err: any) {
-        reject(err);
-      }
-    };
-    reader.onerror = () => reject(new Error("Erreur de lecture du fichier"));
-    reader.readAsArrayBuffer(file);
-  });
 }
 
 // ─── Composant Home ───────────────────────────────────────────
@@ -630,19 +366,15 @@ const Home: React.FC = () => {
     setBoxes([]);
     setRawRecords([]);
 
+    setFilename(file.name);
+    setFilters({});
+    setAvailableYearsFromFile([]);
+    setSelectedYears([]);
+    setSheetNames([]);
+    setUploading(true);
+    setError("⏳ Envoi, lecture et enregistrement du fichier en cours...");
+
     try {
-      const result = await parseExcelToBoxes(file, perfId);
-
-      setFields(result.fields);
-      setFilename(result.filename);
-      setBoxField(result.boxKey);
-      setFilters({});
-      setAvailableYearsFromFile(result.availableYears);
-      setSelectedYears(result.availableYears);
-      setSheetNames(Object.keys(result.sheetData || {}));
-
-      setUploading(true);
-      setError("⏳ Vérification et stockage en cours...");
       
       try {
         const formDataStartedAt = perfNow();
@@ -682,9 +414,10 @@ const Home: React.FC = () => {
               setAvailableYearsFromFile(response.availableYears);
               setSelectedYears(response.availableYears);
             }
+            setSheetNames(response.sheets || []);
 
             const responsePreparationStartedAt = perfNow();
-            const enrichedBoxes = response.enriched.map((item: StoredLabel) => ({
+            const enrichedBoxes: BoxGroup[] = response.enriched.map((item: StoredLabel) => ({
               boxNumber: item.numero_boite, records: [labelToRecord(item)], year: item.annee,
             }));
 
@@ -692,12 +425,7 @@ const Home: React.FC = () => {
             setBoxes(enrichedBoxes);
             setUploadSuccess(true);
             
-            const allRecords: LabelRecord[] = enrichedBoxes.reduce(
-              (acc: LabelRecord[], box: { boxNumber: string; records: LabelRecord[] }) => {
-                return [...acc, ...box.records];
-              },
-              [] as LabelRecord[]
-            );
+            const allRecords: LabelRecord[] = enrichedBoxes.flatMap(box => box.records);
             setRawRecords(allRecords);
             logFrontendPerf("import-response-preparation", perfNow() - responsePreparationStartedAt, {
               boxes: enrichedBoxes.length,
@@ -813,7 +541,7 @@ const Home: React.FC = () => {
                 height="72"
                 viewBox="0 0 24 24"
                 fill="none"
-                stroke="#1a1a2e"
+                stroke="rgb(var(--color-primary))"
                 strokeWidth="0.8"
               >
                 <rect x="3" y="3" width="7" height="7" />
@@ -840,7 +568,7 @@ const Home: React.FC = () => {
                 <select
                   value={selectedAgenceId || ""}
                   onChange={(e) => setSelectedAgenceId(Number(e.target.value))}
-                  className="w-full border border-border px-4 py-2.5 rounded focus:outline-none focus:border-accent font-mono text-sm"
+                  className="ui-field w-full"
                   disabled={loadingAgences}
                 >
                   <option value="">Sélectionner une agence</option>
@@ -859,7 +587,7 @@ const Home: React.FC = () => {
                 <select
                   value={selectedTypeId || ""}
                   onChange={(e) => setSelectedTypeId(Number(e.target.value))}
-                  className="w-full border border-border px-4 py-2.5 rounded focus:outline-none focus:border-accent font-mono text-sm"
+                  className="ui-field w-full"
                   disabled={!selectedAgenceId || loadingAgences}
                 >
                   <option value="">Sélectionner un type</option>

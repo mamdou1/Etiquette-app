@@ -169,7 +169,7 @@ const AgenceManager: React.FC<AgenceManagerProps> = ({ onSelect, selectedId }) =
   }
 
   return (
-    <div className="p-6 bg-white rounded-lg shadow-sm">
+    <div className="ui-card ui-card-raised p-6">
       {/* En-tête */}
       <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
         <h2 className="text-2xl font-bold text-primary">🏢 Gestion des Agences</h2>
@@ -182,7 +182,7 @@ const AgenceManager: React.FC<AgenceManagerProps> = ({ onSelect, selectedId }) =
               else if (val === "active") setFilterActive(true);
               else setFilterActive(false);
             }}
-            className="border border-border px-3 py-2 rounded font-mono text-sm focus:outline-none focus:border-accent"
+            className="ui-field w-auto"
           >
             <option value="all">Toutes</option>
             <option value="active">Actives</option>
@@ -190,7 +190,7 @@ const AgenceManager: React.FC<AgenceManagerProps> = ({ onSelect, selectedId }) =
           </select>
           <button
             onClick={() => openModal()}
-            className="bg-accent hover:bg-red-700 text-white px-4 py-2 rounded font-mono text-sm transition-colors flex items-center gap-2"
+            className="ui-button ui-button-primary"
           >
             <span className="text-lg font-bold">+</span> Nouvelle Agence
           </button>
@@ -303,13 +303,13 @@ const AgenceManager: React.FC<AgenceManagerProps> = ({ onSelect, selectedId }) =
 
       {/* ─── MODAL DE CRÉATION/ÉDITION ────────────────────────── */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={closeModal}>
-          <div className="bg-white rounded-lg p-6 max-w-md w-full max-h-screen overflow-y-auto shadow-xl" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-4">
+        <div className="ui-modal-overlay" onClick={closeModal}>
+          <div className="ui-modal-panel max-w-md max-h-screen overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="ui-modal-header">
               <h3 className="text-lg font-bold text-primary">
                 {editingAgence ? "✏️ Modifier l'agence" : "🏢 Nouvelle agence"}
               </h3>
-              <button onClick={closeModal} className="text-muted hover:text-primary text-xl">
+              <button type="button" onClick={closeModal} className="ui-icon-button text-xl" aria-label="Fermer">
                 ✕
               </button>
             </div>
@@ -324,7 +324,7 @@ const AgenceManager: React.FC<AgenceManagerProps> = ({ onSelect, selectedId }) =
                     type="text"
                     value={formData.code}
                     onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
-                    className="w-full border border-border px-4 py-2.5 rounded focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/20 transition-all font-mono text-sm uppercase"
+                    className="ui-field uppercase"
                     placeholder="CODE (ex: DGEI)"
                   />
                 </div>
@@ -337,7 +337,7 @@ const AgenceManager: React.FC<AgenceManagerProps> = ({ onSelect, selectedId }) =
                     type="text"
                     value={formData.nom}
                     onChange={(e) => setFormData({ ...formData, nom: e.target.value.toUpperCase() })}
-                    className="w-full border border-border px-4 py-2.5 rounded focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/20 transition-all font-mono text-sm"
+                    className="ui-field"
                     placeholder="NOM DE L'AGENCE"
                     required
                   />
@@ -350,17 +350,17 @@ const AgenceManager: React.FC<AgenceManagerProps> = ({ onSelect, selectedId }) =
                 </div>
               )}
 
-              <div className="flex gap-3 mt-6">
+              <div className="ui-modal-actions">
                 <button
                   type="submit"
-                  className="flex-1 bg-accent hover:bg-red-700 text-white py-2.5 rounded font-mono text-sm transition-colors flex items-center justify-center gap-2"
+                  className="ui-button ui-button-primary flex-1"
                 >
                   {editingAgence ? "💾 Mettre à jour" : "✨ Créer"}
                 </button>
                 <button
                   type="button"
                   onClick={closeModal}
-                  className="flex-1 bg-surface hover:bg-border text-primary py-2.5 rounded font-mono text-sm transition-colors"
+                  className="ui-button ui-button-secondary flex-1"
                 >
                   Annuler
                 </button>
@@ -372,13 +372,13 @@ const AgenceManager: React.FC<AgenceManagerProps> = ({ onSelect, selectedId }) =
 
       {/* ─── MODAL DE SUPPRESSION ────────────────────────────── */}
       {isDeleteModalOpen && agenceToDelete && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={closeDeleteModal}>
-          <div className="bg-white rounded-lg p-6 max-w-md w-full shadow-xl" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-4">
+        <div className="ui-modal-overlay" onClick={closeDeleteModal}>
+          <div className="ui-modal-panel max-w-md" onClick={(e) => e.stopPropagation()}>
+            <div className="ui-modal-header">
               <h3 className="text-lg font-bold text-red-600">
                 {agenceToDelete.active ? "🗑️ Désactiver l'agence" : "🗑️ Supprimer l'agence"}
               </h3>
-              <button onClick={closeDeleteModal} className="text-muted hover:text-primary text-xl">
+              <button type="button" onClick={closeDeleteModal} className="ui-icon-button text-xl" aria-label="Fermer">
                 ✕
               </button>
             </div>
@@ -398,16 +398,16 @@ const AgenceManager: React.FC<AgenceManagerProps> = ({ onSelect, selectedId }) =
               </p>
             </div>
 
-            <div className="flex gap-3 mt-6">
+            <div className="ui-modal-actions">
               <button
                 onClick={agenceToDelete.active ? handleDelete : handleDeletePermanent}
-                className="flex-1 bg-red-600 hover:bg-red-700 text-white py-2.5 rounded font-mono text-sm transition-colors flex items-center justify-center gap-2"
+                className="ui-button ui-button-danger flex-1"
               >
                 {agenceToDelete.active ? "🗑️ Désactiver" : "🗑️ Supprimer"}
               </button>
               <button
                 onClick={closeDeleteModal}
-                className="flex-1 bg-surface hover:bg-border text-primary py-2.5 rounded font-mono text-sm transition-colors"
+                className="ui-button ui-button-secondary flex-1"
               >
                 Annuler
               </button>

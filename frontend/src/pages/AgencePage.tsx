@@ -334,7 +334,7 @@ const AgencePage: React.FC = () => {
           <select
             value={selectedAgenceId || ''}
             onChange={(e) => setSelectedAgenceId(Number(e.target.value))}
-            className="border border-border px-4 py-2 rounded font-mono text-sm focus:outline-none focus:border-accent"
+            className="ui-field w-auto"
           >
             {agences.map((agence) => (
               <option key={agence.id} value={agence.id}>
@@ -355,7 +355,7 @@ const AgencePage: React.FC = () => {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Rechercher un type, une année, une boîte..."
-            className="w-full pl-10 pr-4 py-2 border border-border rounded font-mono text-sm focus:outline-none focus:border-accent"
+            className="ui-field w-full pl-10 pr-4"
           />
         </div>
       </div>
@@ -368,7 +368,7 @@ const AgencePage: React.FC = () => {
       )}
 
       {filteredHierarchy && !loading && (
-        <div className="bg-white rounded-lg shadow-sm border border-border p-6">
+        <div className="ui-card ui-card-raised p-6">
           <HierarchyTree
             data={filteredHierarchy}
             onPrintBoxes={handlePrintBoxes}
@@ -389,7 +389,7 @@ const AgencePage: React.FC = () => {
       )}
 
       {!loading && !filteredHierarchy && (
-        <div className="text-center py-12 bg-white rounded-lg border border-border">
+        <div className="ui-card text-center py-12">
           <div className="text-5xl mb-4">📭</div>
           <h3 className="text-lg font-medium text-muted">Aucune donnée</h3>
           <p className="text-sm text-muted/60 font-mono">

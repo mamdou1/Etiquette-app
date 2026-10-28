@@ -70,13 +70,13 @@ const AddBoiteModal: React.FC<AddBoiteModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={onClose}>
-      <div className="bg-white rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-xl" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-bold text-primary">
+    <div className="ui-modal-overlay" onClick={onClose}>
+      <div className="ui-modal-panel max-w-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="ui-modal-header">
+          <h3 className="ui-modal-title">
             ➕ Ajouter une boîte - {typeNom}
           </h3>
-          <button onClick={onClose} className="text-muted hover:text-primary text-xl">✕</button>
+          <button type="button" onClick={onClose} className="ui-icon-button text-xl" aria-label="Fermer">✕</button>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -89,7 +89,7 @@ const AddBoiteModal: React.FC<AddBoiteModalProps> = ({
               type="text"
               value={numeroBoite}
               onChange={(e) => setNumeroBoite(e.target.value)}
-              className="w-full border border-border px-4 py-2.5 rounded focus:outline-none focus:border-accent font-mono text-sm"
+              className="ui-field"
               placeholder="BOX-001"
               required
             />
@@ -104,7 +104,7 @@ const AddBoiteModal: React.FC<AddBoiteModalProps> = ({
               type="text"
               value={annee}
               onChange={(e) => setAnnee(e.target.value)}
-              className="w-full border border-border px-4 py-2.5 rounded focus:outline-none focus:border-accent font-mono text-sm"
+              className="ui-field"
               placeholder="2024"
               required
             />
@@ -121,7 +121,7 @@ const AddBoiteModal: React.FC<AddBoiteModalProps> = ({
                 <textarea
                   value={formData[mf.name] || ''}
                   onChange={(e) => setFormData({ ...formData, [mf.name]: e.target.value })}
-                  className="w-full border border-border px-4 py-2.5 rounded focus:outline-none focus:border-accent font-mono text-sm resize-none"
+                  className="ui-field resize-none"
                   rows={2}
                   placeholder={mf.label}
                 />
@@ -129,7 +129,7 @@ const AddBoiteModal: React.FC<AddBoiteModalProps> = ({
                 <select
                   value={formData[mf.name] || ''}
                   onChange={(e) => setFormData({ ...formData, [mf.name]: e.target.value })}
-                  className="w-full border border-border px-4 py-2.5 rounded focus:outline-none focus:border-accent font-mono text-sm"
+                  className="ui-field"
                 >
                   <option value="">Sélectionner...</option>
                   {/* Options à ajouter via mf.options */}
@@ -139,14 +139,14 @@ const AddBoiteModal: React.FC<AddBoiteModalProps> = ({
                   type="date"
                   value={formData[mf.name] || ''}
                   onChange={(e) => setFormData({ ...formData, [mf.name]: e.target.value })}
-                  className="w-full border border-border px-4 py-2.5 rounded focus:outline-none focus:border-accent font-mono text-sm"
+                  className="ui-field"
                 />
               ) : mf.field_type === 'number' ? (
                 <input
                   type="number"
                   value={formData[mf.name] || ''}
                   onChange={(e) => setFormData({ ...formData, [mf.name]: parseFloat(e.target.value) || '' })}
-                  className="w-full border border-border px-4 py-2.5 rounded focus:outline-none focus:border-accent font-mono text-sm"
+                  className="ui-field"
                   placeholder={mf.label}
                 />
               ) : mf.field_type === 'boolean' ? (
@@ -177,18 +177,18 @@ const AddBoiteModal: React.FC<AddBoiteModalProps> = ({
             </div>
           )}
 
-          <div className="flex gap-3">
+          <div className="ui-modal-actions">
             <button
               type="submit"
               disabled={submitting || loading}
-              className="flex-1 bg-accent hover:bg-red-700 disabled:bg-border disabled:text-muted text-white py-2.5 rounded font-mono text-sm transition-colors"
+              className="ui-button ui-button-primary flex-1"
             >
               {submitting ? '⏳ Enregistrement...' : '💾 Enregistrer'}
             </button>
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 bg-surface hover:bg-border text-primary py-2.5 rounded font-mono text-sm transition-colors"
+              className="ui-button ui-button-secondary flex-1"
             >
               Annuler
             </button>

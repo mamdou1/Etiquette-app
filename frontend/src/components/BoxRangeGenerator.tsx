@@ -40,30 +40,30 @@ export default function BoxRangeGenerator({ hierarchy, onGenerate }: Props) {
     } catch { setError('Impossible de générer les étiquettes. Réessayez.'); }
     finally { setBusy(false); }
   };
-  return <form onSubmit={generate} className="no-print bg-white border border-border rounded-lg p-5 mb-6">
+  return <form onSubmit={generate} className="no-print ui-card p-5 mb-6">
     <h2 className="font-bold mb-2">Générer une plage de boîtes</h2>
     <p className="text-sm text-muted mb-4">Agence : {hierarchy.agence.nom}. Les deux limites sont incluses ; seules les boîtes existantes seront imprimées.</p>
     <fieldset disabled={busy} className="flex flex-wrap gap-4 items-end">
       <label className="text-sm">Type de document
-        <select required className="block border rounded p-2 mt-1" value={typeId} onChange={event => { setTypeId(event.target.value); setYear(''); resetRange(); }}>
+        <select required className="ui-field mt-1 w-auto" value={typeId} onChange={event => { setTypeId(event.target.value); setYear(''); resetRange(); }}>
           <option value="">Choisir un type</option>
           {hierarchy.types.map(type => <option key={type.id} value={type.id}>{type.nom}</option>)}
         </select>
       </label>
       <label className="text-sm">Année
-        <select required disabled={!type} className="block border rounded p-2 mt-1" value={year} onChange={event => { setYear(event.target.value); resetRange(); }}>
+        <select required disabled={!type} className="ui-field mt-1 w-auto" value={year} onChange={event => { setYear(event.target.value); resetRange(); }}>
           <option value="">Choisir une année</option>
           {type?.annees.map(item => <option key={item.annee} value={item.annee}>{item.annee}</option>)}
         </select>
       </label>
       <label className="text-sm">N° boîte de début
-        <input required disabled={!year} list="range-box-numbers" className="block border rounded p-2 mt-1 w-40" placeholder="Ex. 10" value={from} onChange={event => { setFrom(event.target.value); setError(''); }} />
+        <input required disabled={!year} list="range-box-numbers" className="ui-field mt-1 w-40" placeholder="Ex. 10" value={from} onChange={event => { setFrom(event.target.value); setError(''); }} />
       </label>
       <label className="text-sm">N° boîte de fin
-        <input required disabled={!year} list="range-box-numbers" className="block border rounded p-2 mt-1 w-40" placeholder="Ex. 25" value={to} onChange={event => { setTo(event.target.value); setError(''); }} />
+        <input required disabled={!year} list="range-box-numbers" className="ui-field mt-1 w-40" placeholder="Ex. 25" value={to} onChange={event => { setTo(event.target.value); setError(''); }} />
       </label>
       <datalist id="range-box-numbers">{numbers.map(number => <option key={number} value={number} />)}</datalist>
-      <button disabled={!year || !from.trim() || !to.trim()} type="submit" className="bg-accent text-white px-4 py-2 rounded disabled:opacity-50">{busy ? 'Génération…' : 'Générer les étiquettes'}</button>
+      <button disabled={!year || !from.trim() || !to.trim()} type="submit" className="ui-button ui-button-primary">{busy ? 'Génération…' : 'Générer les étiquettes'}</button>
     </fieldset>
     {from.trim() && to.trim() && <p className="text-sm mt-3" role="status">{selected.length} boîte(s) dans cette plage.</p>}
     {error && <p className="text-red-700 mt-3" role="alert">{error}</p>}

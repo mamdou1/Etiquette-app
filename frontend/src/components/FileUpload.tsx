@@ -37,7 +37,7 @@ const FileUpload: React.FC<Props> = ({ onFile, loading }) => {
         onChange={(e) => handle(e.target.files?.[0])}
       />
       {loading ? (
-        <p className="text-sm text-muted font-mono animate-pulse">Lecture en cours…</p>
+        <p className="text-sm text-muted font-mono animate-pulse">Envoi et traitement en cours…</p>
       ) : (
         <>
           <svg className="mx-auto mb-3 text-muted" width="36" height="36" viewBox="0 0 24 24"

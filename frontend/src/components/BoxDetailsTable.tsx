@@ -39,6 +39,7 @@ export default function BoxDetailsTable({ boxNumber, record, fields }: Props) {
     <div className="space-y-4 min-w-0">
       <dl className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
         <div><dt className="font-semibold">N° Boîte</dt><dd>{boxNumber}</dd></div>
+        <div><dt className="font-semibold">Nombre de dossiers</dt><dd>{rows.length}</dd></div>
         {common.map(field => <div key={field.name}>
           <dt className="font-semibold">{field.label}</dt>
           <dd className="break-words whitespace-pre-wrap">{valueOf(rows[0], field.name) || '—'}</dd>
@@ -51,7 +52,7 @@ export default function BoxDetailsTable({ boxNumber, record, fields }: Props) {
         <p className="text-xs text-gray-600">Faites défiler le tableau de gauche à droite pour consulter toutes les colonnes.</p>
         <div className="max-w-full overflow-x-auto border rounded" tabIndex={0} role="region" aria-label="Dossiers de la boîte, tableau à défilement horizontal">
           <table className="min-w-full w-max text-sm border-collapse">
-            <caption className="text-left p-3">{hasSourceRows ? `${rows.length} lignes du fichier source` : 'Valeurs enregistrées'}</caption>
+            <caption className="text-left p-3">{hasSourceRows ? `${rows.length} dossier${rows.length > 1 ? 's' : ''}` : 'Valeurs enregistrées'}</caption>
             <thead className="bg-gray-100"><tr>
               {details.map(field => <th scope="col" key={field.name} className="text-left px-4 py-3 border-b border-r border-dotted whitespace-nowrap">{field.label}</th>)}
             </tr></thead>
