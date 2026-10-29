@@ -224,6 +224,7 @@ const Home: React.FC = () => {
   const [enrichedInfo, setEnrichedInfo] = useState<{ original: number; saved: number } | null>(null);
   const [uploading, setUploading] = useState(false);
   const [selectedYears, setSelectedYears] = useState<string[]>([]);
+  const [selectedBoxNumbers, setSelectedBoxNumbers] = useState<string[]>([]);
   const [detectedFields, setDetectedFields] = useState<string[]>([]);
   const [availableYearsFromFile, setAvailableYearsFromFile] = useState<string[]>([]);
   const [sheetNames, setSheetNames] = useState<string[]>([]);
@@ -330,10 +331,16 @@ const Home: React.FC = () => {
     )].sort();
   }, [allRecords, availableYearsFromFile]);
 
-  const filteredBoxes = useMemo(() => {
+  const filteredByFieldsAndYearsBoxes = useMemo(() => {
     if (!boxField || !filteredRecords.length) return [];
     return groupByBox(filteredRecords, boxField);
   }, [filteredRecords, boxField]);
+
+  const filteredBoxes = useMemo(() => {
+    if (selectedBoxNumbers.length === 0) return filteredByFieldsAndYearsBoxes;
+    const selected = new Set(selectedBoxNumbers);
+    return filteredByFieldsAndYearsBoxes.filter(box => selected.has(box.boxNumber));
+  }, [filteredByFieldsAndYearsBoxes, selectedBoxNumbers]);
 
   const displayError = (
     errorMessage: string,
@@ -385,6 +392,7 @@ const Home: React.FC = () => {
     setFilters({});
     setAvailableYearsFromFile([]);
     setSelectedYears([]);
+    setSelectedBoxNumbers([]);
     setSheetNames([]);
     setUploading(true);
     setError("⏳ Envoi, lecture et enregistrement du fichier en cours...");
@@ -511,6 +519,7 @@ const Home: React.FC = () => {
       ? { ...box, boxNumber: label.numero_boite, year: label.annee, records: [updated] } : box));
     setAvailableYearsFromFile([]);
     setSelectedYears([]);
+    setSelectedBoxNumbers([]);
   }, []);
 
   const requestPrint = useCallback(() => previewRef.current?.printAll(), []);
@@ -528,6 +537,7 @@ const Home: React.FC = () => {
     setValidationErrorPage(0);
     setEnrichedInfo(null);
     setSelectedYears([]);
+    setSelectedBoxNumbers([]);
     setAvailableYearsFromFile([]);
     setSheetNames([]);
     setImportStats(null);
@@ -832,6 +842,9 @@ const Home: React.FC = () => {
             availableYears={availableYears}
             selectedYears={selectedYears}
             onToggleYear={toggleYear}
+            selectedBoxNumbers={selectedBoxNumbers}
+            availableBoxNumbers={[...new Set(boxes.map(box => box.boxNumber))]}
+            onSelectedBoxNumbersChange={setSelectedBoxNumbers}
             onPrint={requestPrint}
             onReset={reset}
           />

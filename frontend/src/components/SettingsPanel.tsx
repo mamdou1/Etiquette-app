@@ -1,4 +1,5 @@
 import QrStatisticsPanel from './QrStatisticsPanel';
+import BoxMultiSelect from './BoxMultiSelect';
 import { LabelRecord } from '../types';
 import React, { useState } from "react";
 import { useSettings } from "../contexts/SettingsContext";
@@ -32,6 +33,9 @@ interface Props {
   availableYears: string[];
   selectedYears: string[];
   onToggleYear: (year: string) => void;
+  selectedBoxNumbers?: string[];
+  availableBoxNumbers?: string[];
+  onSelectedBoxNumbersChange?: (numbers: string[]) => void;
   onPrint: () => void;
   onReset: () => void;
   metaFields?: Array<{
@@ -51,6 +55,9 @@ const SettingsPanel: React.FC<Props> = ({
   availableYears,
   selectedYears,
   onToggleYear,
+  selectedBoxNumbers = [],
+  availableBoxNumbers = [],
+  onSelectedBoxNumbersChange = () => {},
   onPrint,
   onReset,
   metaFields = [],
@@ -232,6 +239,33 @@ const SettingsPanel: React.FC<Props> = ({
           </p>
         </div>
       )}
+
+      <div>
+        <div className="flex items-center justify-between gap-2 mb-2">
+          <label htmlFor="box-number-multiselect" className="font-mono text-[10px] uppercase tracking-widest text-muted">
+            Boîtes à générer
+          </label>
+          {selectedBoxNumbers.length > 0 && (
+            <button
+              type="button"
+              onClick={() => onSelectedBoxNumbersChange([])}
+              className="font-mono text-[10px] text-accent hover:underline"
+            >
+              Tout effacer
+            </button>
+          )}
+        </div>
+        <BoxMultiSelect
+          options={availableBoxNumbers}
+          value={selectedBoxNumbers}
+          onChange={onSelectedBoxNumbersChange}
+        />
+        <p className="mt-1 font-mono text-[10px] text-muted" role="status">
+          {selectedBoxNumbers.length === 0
+            ? "Aucune sélection : toutes les boîtes correspondant aux autres filtres seront générées."
+            : `${selectedBoxNumbers.length} boîte(s) sélectionnée(s) ; ${availableBoxNumbers.filter(number => selectedBoxNumbers.includes(number)).length} disponible(s).`}
+        </p>
+      </div>
 
       {/* ... reste du code inchangé ... */}
       <div>
