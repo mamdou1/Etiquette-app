@@ -1,4 +1,4 @@
-import { statisticsText } from '../utils/qrStatistics';
+import { groupedStatisticsText, pairingText, statisticsText } from '../utils/qrStatistics';
 import LabelEditorModal from './LabelEditorModal';
 import { labelToRecord, StoredLabel } from '../services/labelService';
 import React, { useMemo, useState, useEffect } from "react";
@@ -58,6 +58,7 @@ const LabelCard: React.FC<Props> = ({
     fontFamily,
     showQr: globalShowQr,
     valueSpacing,
+    qrSpacing,
     boxPrefix,
     fieldRange,
     qrStatistics,
@@ -242,21 +243,44 @@ const LabelCard: React.FC<Props> = ({
       );
       return isAgence ? "Service Producteur" : label;
     };
-    const lines: string[] = [
-      `• N° Boîte : ${boxNumber}`,
-      `• Nombre de dossiers : ${Math.max(1, Number(record.__dossierCount) || 1)}`,
-    ];
-
     const fieldsToUse =
       metaFields.length > 0
         ? metaFields
         : allFields.map((f) => ({ name: f, label: f, field_type: "text" }));
+    const hiddenColumns = qrStatistics.hiddenColumns || [];
+    const boxNumberHidden = fieldsToUse.some(
+      (field) => hiddenColumns.includes(field.name) && [field.name, field.label].some(isBoxField),
+    );
+    const lines: string[] = [
+      ...(boxNumberHidden ? [] : [`• N° Boîte : ${boxNumber}`]),
+      `• Nombre de dossiers : ${Math.max(1, Number(record.__dossierCount) || 1)}`,
+    ];
+
+    const paired = pairingText(record, qrStatistics, metaFields);
+    const groupedFields = qrStatistics.groupedEnabled
+      ? [
+          qrStatistics.groupedPrimaryField,
+          ...(qrStatistics.groupedSecondaryFields || []),
+          qrStatistics.groupedValueField,
+        ].filter(Boolean)
+      : [];
 
     for (const field of fieldsToUse) {
+      if (hiddenColumns.includes(field.name)) continue;
+      // Les champs utilisés par les statistiques groupées sont déjà présentés
+      // avec leur relation et leurs nombres dans la section dédiée.
+      if (groupedFields.includes(field.name)) continue;
       // Le numéro est déjà présent en tête du QR, même si le fichier
       // l'expose aussi comme champ sous un autre libellé.
       const isBoxNumberField = [field.name, field.label].some(isBoxField);
       if (isBoxNumberField) continue;
+      if (
+        qrStatistics.pairingEnabled &&
+        [
+          qrStatistics.pairingLabelField,
+          ...qrStatistics.pairingValueFields,
+        ].includes(field.name)
+      ) continue;
 
       const value = getFieldValue(field.name) || getFieldValue(field.label);
       if (value) {
@@ -265,8 +289,11 @@ const LabelCard: React.FC<Props> = ({
         );
       }
     }
+    if (paired) lines.push(paired);
     const summary = statisticsText(record, qrStatistics, metaFields);
     if (summary) lines.push(summary);
+    const groupedSummary = groupedStatisticsText(record, qrStatistics, metaFields);
+    if (groupedSummary) lines.push(groupedSummary);
     return lines.join("\n\n");
   }, [record, allFields, boxNumber, metaFields, qrStatistics]);
 
@@ -274,7 +301,6 @@ const LabelCard: React.FC<Props> = ({
     () => splitQrContent(qrData, boxNumber),
     [qrData, boxNumber],
   );
-
   const hasData = displayValues.length > 0;
   const [showQrModal, setShowQrModal] = useState(false);
 
@@ -288,6 +314,9 @@ const LabelCard: React.FC<Props> = ({
   };
 
   const qrSize = Number(record.__qrSize) || fontSize.qrSize;
+  const renderedQrSize = qrContent.parts.length > 2
+    ? Math.max(120, Math.min(qrSize, 150))
+    : qrSize;
 
   const valueSize = getValueSize();
 
@@ -427,38 +456,53 @@ const LabelCard: React.FC<Props> = ({
                   {qrContent.error}
                 </p>
               ) : (
-                <div className="flex flex-wrap justify-center gap-3 w-full">
+                <div
+                  className="grid justify-center w-full"
+                  style={{
+                    gridTemplateColumns: `repeat(${Math.min(qrContent.parts.length, 2)}, ${renderedQrSize}px)`,
+                    gap: `${qrSpacing}px`,
+                  }}
+                >
                   {qrContent.parts.map((value, index) => (
                     <button
                       type="button"
                       key={index}
                       className="bg-white shrink-0 flex flex-col items-center rounded cursor-pointer"
-                      style={{ width: qrSize }}
+                      style={{
+                        width: renderedQrSize,
+                        gridColumn:
+                          qrContent.parts.length > 1 &&
+                          qrContent.parts.length % 2 === 1 &&
+                          index === qrContent.parts.length - 1
+                            ? "1 / -1"
+                            : undefined,
+                        justifySelf: "center",
+                      }}
                       title="Cliquer pour voir les détails de la boîte"
                       onClick={event => { event.stopPropagation(); setShowQrModal(true); }}
                     >
                       <QRCodeSVG
                         value={value}
-                        size={qrSize}
-                        style={{ width: qrSize, height: qrSize, flexShrink: 0 }}
+                        size={renderedQrSize}
+                        style={{ width: renderedQrSize, height: renderedQrSize, flexShrink: 0 }}
                         fgColor="#000000"
                         bgColor="#ffffff"
                         level="M"
                         includeMargin={true}
                       />
-                      {qrContent.parts.length === 2 && (
+                      {qrContent.parts.length > 1 && (
                         <span className="text-xs font-bold text-black">
-                          QR {index + 1}/2
+                          QR {index + 1}/{qrContent.parts.length}
                         </span>
                       )}
                     </button>
                   ))}
                 </div>
               )}
-              {qrContent.parts.length === 2 && (
+              {qrContent.parts.length > 1 && (
                 <p className="text-xs text-center mt-1">
-                  Scanner les deux QR dans l’ordre pour lire toutes les
-                  informations.
+                  Scanner les {qrContent.parts.length} QR dans l’ordre pour lire
+                  toutes les informations.
                 </p>
               )}
             </div>

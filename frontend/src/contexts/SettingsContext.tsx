@@ -19,6 +19,8 @@ interface SettingsContextValue {
   setShowQr: (value: boolean) => void;
   valueSpacing: number;
   setValueSpacing: (value: number) => void;
+  qrSpacing: number;
+  setQrSpacing: (value: number) => void;
   boxPrefix: string;
   setBoxPrefix: (value: string) => void;
   // États
@@ -85,6 +87,7 @@ export const SettingsProvider: React.FC<{ children: ReactNode }> = ({
   const [labelLayout, setLabelLayout] = useState<'auto' | 'row'>('auto');
   const [showQr, setShowQr] = useState(true);
   const [valueSpacing, setValueSpacing] = useState(0);
+  const [qrSpacing, setQrSpacing] = useState(12);
   const [boxPrefix, setBoxPrefix] = useState('Boîte N°');
   const [fieldRange, setFieldRange] = useState({ enabled: false, from: '', to: '' });
 
@@ -126,6 +129,7 @@ export const SettingsProvider: React.FC<{ children: ReactNode }> = ({
         fieldRange, setFieldRange,
         showQr, setShowQr,
         valueSpacing, setValueSpacing,
+        qrSpacing, setQrSpacing,
         boxPrefix, setBoxPrefix,
         cols,
         size,

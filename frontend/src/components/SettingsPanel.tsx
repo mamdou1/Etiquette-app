@@ -58,6 +58,7 @@ const SettingsPanel: React.FC<Props> = ({
   const {
     showQr, setShowQr,
     valueSpacing, setValueSpacing,
+    qrSpacing, setQrSpacing,
     boxPrefix, setBoxPrefix,
     fieldRange, setFieldRange,
     cols,
@@ -449,6 +450,20 @@ const SettingsPanel: React.FC<Props> = ({
         <label htmlFor="value-spacing" className="block text-xs mb-1">Espacement entre les valeurs : {valueSpacing} px</label>
         <input id="value-spacing" type="range" min="0" max="40" step="1" value={valueSpacing}
           onChange={e => setValueSpacing(Number(e.target.value))} className="w-full accent-accent mb-3" />
+        <label htmlFor="qr-spacing" className="block text-xs mb-1">
+          Espacement entre les QR codes : {qrSpacing} px
+        </label>
+        <input
+          id="qr-spacing"
+          aria-label="Espacement entre les QR codes"
+          type="range"
+          min="1"
+          max="60"
+          step="1"
+          value={qrSpacing}
+          onChange={e => setQrSpacing(Number(e.target.value))}
+          className="w-full accent-accent mb-3"
+        />
         <label htmlFor="box-prefix" className="block text-xs mb-1">Libellé avant le numéro</label>
         <input id="box-prefix" type="text" list="box-prefix-options" value={boxPrefix}
           onChange={e => setBoxPrefix(e.target.value)} placeholder="Boîte N°"
