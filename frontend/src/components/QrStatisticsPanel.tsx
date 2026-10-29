@@ -204,11 +204,6 @@ export default function QrStatisticsPanel({
       <div className="rounded-lg border border-border p-3 space-y-3">
         <div className="flex items-center justify-between gap-3">
           <div>
-            /*
-            <h3 className="font-semibold text-sm">
-              Statistiques groupées par client
-            </h3>
-            */
             <p className="text-xs text-muted mt-1">
               Compter une catégorie séparément pour chaque client de la boîte
             </p>
