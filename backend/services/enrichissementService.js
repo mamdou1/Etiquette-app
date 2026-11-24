@@ -576,14 +576,7 @@ const enrichirEtStocker = async (records, agenceId, typeDocumentId, perf) => {
     // Cas 1 : objet Date (bug Excel) → extraire l'année
     if (val instanceof Date) {
       const y = val.getFullYear();
-      // 1905 = 2015 jours après 1900 → la valeur originale était 2015
-      if (y === 1905) {
-        anneeStr = "2015";
-      } else if (y < 2000) {
-        anneeStr = "";
-      } else {
-        anneeStr = String(y);
-      }
+      anneeStr = y >= 1900 && y <= 2100 ? String(y) : "";
     }
     // Cas 2 : nombre → convertir en string
     else if (typeof val === "number") {

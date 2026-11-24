@@ -567,44 +567,16 @@ function formatValue(value: LabelValue): string {
     }
   }
 
-  // ✅ AJOUT 2 : Si c'est une Date JS (bug Excel) — cast en any pour TypeScript
+  // Si c'est une vraie Date JS, conserver la date exacte.
   const anyValue = value as any;
   if (anyValue instanceof Date && !Number.isNaN(anyValue.getTime())) {
     const y = anyValue.getFullYear();
-    // 1905 = 2015 jours après 1900 → valeur originale = 2015
-    if (y === 1905) {
-      return "2015";
-    }
-    // Année plausible → retourner juste l'année
-    if (y >= 2000 && y <= 2100) {
-      return String(y);
-    }
-    // Année aberrante → vide
-    if (y < 2000) {
-      return "";
-    }
-    // Sinon formater en JJ/MM/AAAA
     const day = String(anyValue.getDate()).padStart(2, "0");
     const month = String(anyValue.getMonth() + 1).padStart(2, "0");
     return `${day}/${month}/${y}`;
   }
 
-  // ✅ AJOUT 3 : Détecter le pattern "07/07/1905" (année aberrante d'une date mal convertie)
-  if (typeof value === "string") {
-    const dateMatch = value.match(/^(\d{2})\/(\d{2})\/(19\d{2})$/);
-    if (dateMatch) {
-      const year = parseInt(dateMatch[3], 10);
-      // 1905 = 2015 jours après 1900 → valeur originale = 2015
-      if (year === 1905) {
-        return "2015";
-      }
-      // Autres années < 2000 → vide
-      if (year < 2000) {
-        return "";
-      }
-    }
-    return value;
-  }
+  if (typeof value === "string") return value;
 
   if (typeof value === "number") return value.toString();
   return String(value);

@@ -98,6 +98,22 @@ function cleanCellValue(header, value) {
     return rawValue;
   }
 
+  // Une année seule dans une colonne de date/période n'est pas un numéro de
+  // série Excel. Sans ce contrôle, 2014, 2015, 2024, etc. deviennent des
+  // dates de 1905 lors du passage dans XLSX.SSF.parse_date_code().
+  if (isDateField(header)) {
+    const numericYear =
+      typeof value === "number" && Number.isInteger(value)
+        ? value
+        : /^\d{4}$/.test(rawValue)
+          ? Number(rawValue)
+          : null;
+
+    if (numericYear !== null && numericYear >= 1900 && numericYear <= 2100) {
+      return String(numericYear);
+    }
+  }
+
   // ✅ Détection date normale (uniquement pour les vraies colonnes de date)
   if (
     isDateField(header) &&
