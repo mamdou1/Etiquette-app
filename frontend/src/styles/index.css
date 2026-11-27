@@ -635,11 +635,12 @@ body {
     width: 100% !important;
     display: flex !important;
     flex-direction: column !important;
-    justify-content: space-between !important;
+    justify-content: flex-start !important;
     overflow: hidden !important;
     box-sizing: border-box !important;
   }
 
+  /* Informations : occupent l'espace disponible au-dessus du QR */
   .label-card .print-label-content {
     flex: 1 1 auto !important;
     min-height: 0 !important;
@@ -648,14 +649,20 @@ body {
     display: flex !important;
     flex-direction: column !important;
     align-items: center !important;
+    margin-bottom: 0 !important;
   }
 
   /* ✅ QR code : ne rétrécit JAMAIS, toujours visible */
+  /* QR code : toujours poussé vers le bas */
   .label-card .print-label-qr {
     flex: 0 0 auto !important;
     display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
     justify-content: center !important;
-    margin-top: 1mm !important;
+    margin-top: auto !important;
+    margin-bottom: 1.5mm !important;
+    padding-bottom: 0 !important;
     visibility: visible !important;
     opacity: 1 !important;
     overflow: visible !important;

@@ -626,7 +626,7 @@ if (actualBytes > QR_BYTE_LIMIT) {
 
           {/* QR Code en bas avec plus d'espace */}
           {showQr && (
-            <div className="print-label-qr flex flex-col items-center w-full mb-48">
+            <div className="print-label-qr flex flex-col items-center w-full">
               {qrContent.error ? (
                 <p
                   role="alert"
