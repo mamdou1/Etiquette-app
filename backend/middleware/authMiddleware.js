@@ -31,4 +31,4 @@ const requireAdmin = (req, res, next) => {
   return next();
 };
 
-module.exports = { requireAuth, requireAdmin };
+module.exports = { requireAuth, auth: requireAuth, requireAdmin };

@@ -1,7 +1,243 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500;700&family=DM+Sans:wght@300;400;500;700&display=swap');
+@import url("https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500;700&family=DM+Sans:wght@300;400;500;700&display=swap");
 @tailwind base;
 @tailwind components;
+
+@layer components {
+  .ui-button {
+    @apply inline-flex min-h-10 items-center justify-center gap-2 rounded px-4 py-2.5 font-mono text-sm font-semibold transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-60;
+  }
+
+  .ui-button-primary {
+    @apply bg-primary text-white hover:brightness-110 active:brightness-95;
+  }
+
+  .ui-button-primary:disabled {
+    @apply bg-border text-muted brightness-100;
+  }
+
+  .ui-button-secondary {
+    @apply border border-border bg-white text-primary hover:bg-surface-muted active:bg-border;
+  }
+
+  .ui-button-secondary:disabled {
+    @apply bg-surface-muted text-muted;
+  }
+
+  .ui-button-danger {
+    @apply bg-danger text-white hover:brightness-110 active:brightness-95;
+  }
+
+  .ui-button-ghost {
+    @apply bg-transparent text-muted hover:bg-surface-muted hover:text-primary active:bg-border;
+  }
+
+  .ui-button-sm {
+    @apply min-h-8 px-3 py-1.5 text-xs;
+  }
+
+  .ui-button-lg {
+    @apply min-h-11 px-5 py-3;
+  }
+
+  .ui-button-block {
+    @apply w-full;
+  }
+
+  .ui-icon-button {
+    @apply inline-flex h-9 w-9 shrink-0 items-center justify-center rounded text-muted transition-colors hover:bg-surface-muted hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50;
+  }
+
+  .ui-field {
+    @apply min-h-10 w-full rounded border border-border bg-white px-3 py-2 font-mono text-sm text-primary placeholder:text-muted transition-colors focus-visible:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/20 disabled:cursor-not-allowed disabled:bg-surface-muted disabled:text-muted;
+  }
+
+  .ui-field-sm {
+    @apply min-h-8 px-2 py-1 text-xs;
+  }
+
+  .ui-field[aria-invalid="true"] {
+    @apply border-danger focus-visible:border-danger focus-visible:ring-danger/20;
+  }
+
+  .ui-card {
+    @apply rounded-lg border border-border bg-white;
+  }
+
+  .ui-card-raised {
+    @apply shadow-sm;
+  }
+
+  .ui-modal-overlay {
+    @apply fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/50 p-4;
+  }
+
+  .ui-modal-panel {
+    @apply w-full rounded-lg border border-border bg-white p-6 shadow-xl;
+  }
+
+  .ui-modal-header {
+    @apply mb-4 flex items-center justify-between gap-3;
+  }
+
+  .ui-modal-title {
+    @apply text-lg font-bold text-primary;
+  }
+
+  .ui-modal-actions {
+    @apply mt-6 flex gap-3;
+  }
+
+  .app-header-nav-link {
+    @apply relative inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-md px-3 py-2 font-sans text-sm font-medium text-header-text/75 transition-colors duration-200 hover:bg-header-text/10 hover:text-header-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-header-text/70 focus-visible:ring-offset-2 focus-visible:ring-offset-header;
+  }
+
+  .app-header-nav-link[aria-current="page"] {
+    @apply bg-header-text/10 text-header-text;
+  }
+
+  .app-header-nav-link::after {
+    content: "";
+    position: absolute;
+    right: 0.75rem;
+    bottom: 0.2rem;
+    left: 0.75rem;
+    height: 2px;
+    border-radius: 9999px;
+    background-color: rgb(var(--color-header-active));
+    transform: scaleX(0);
+    transition: transform 180ms ease;
+  }
+
+  .app-header-nav-link[aria-current="page"]::after {
+    transform: scaleX(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-header-nav-link,
+  .app-header-nav-link::after {
+    transition: none;
+  }
+}
+
 @tailwind utilities;
+
+:root {
+  /* RGB triplets let Tailwind's /opacity utilities use the same source values. */
+  --color-primary: 26 26 46;
+  --color-primary-hover: var(--color-primary);
+  --color-primary-active: var(--color-primary);
+  --color-primary-soft: var(--color-surface);
+  --color-accent: 230 57 70;
+  --color-accent-hover: 185 28 28;
+  --color-accent-soft: 253 232 234;
+  --color-header: var(--color-primary);
+  --color-header-text: 255 255 255;
+  --color-header-active: var(--color-accent);
+  --color-background: 240 237 232;
+  --color-surface: 248 247 244;
+  --color-surface-muted: 240 238 234;
+  --color-text: var(--color-primary);
+  --color-text-secondary: 107 106 102;
+  --color-text-muted: var(--color-text-secondary);
+  --color-border: 226 224 218;
+  --color-border-strong: 200 197 191;
+  --color-success: 21 128 61;
+  --color-warning: 180 83 9;
+  --color-danger: 220 38 38;
+  --color-info: 37 99 235;
+  --color-white: 255 255 255;
+  --color-text-subtle: 158 155 149;
+
+  --font-family-sans: "DM Sans", "Segoe UI", sans-serif;
+  --font-family-mono: "DM Mono", "Courier New", monospace;
+  --font-size-xs: 0.75rem;
+  --font-size-sm: 0.875rem;
+  --font-size-base: 1rem;
+  --font-size-lg: 1.125rem;
+  --font-size-xl: 1.25rem;
+  --font-size-2xl: 1.5rem;
+  --font-size-3xl: 1.875rem;
+  --font-size-4xl: 2.25rem;
+  --font-size-5xl: 3rem;
+  --font-size-6xl: 3.75rem;
+  --font-size-7xl: 4.5rem;
+  --font-size-8xl: 6rem;
+  --font-size-9xl: 8rem;
+  --font-weight-light: 300;
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  --font-weight-extrabold: 800;
+  --line-height-none: 1;
+  --line-height-tight: 1.25;
+  --line-height-snug: 1.375;
+  --line-height-normal: 1.5;
+  --line-height-relaxed: 1.625;
+  --line-height-loose: 2;
+  --line-height-xs: 1rem;
+  --line-height-sm: 1.25rem;
+  --line-height-base: 1.5rem;
+  --line-height-lg: 1.75rem;
+  --line-height-xl: 1.75rem;
+  --line-height-2xl: 2rem;
+  --line-height-3xl: 2.25rem;
+  --line-height-4xl: 2.5rem;
+  --line-height-display: 1;
+
+  --radius-sm: 0.125rem;
+  --radius-control: 0.25rem;
+  --radius-md: 0.375rem;
+  --radius-card: 0.5rem;
+  --radius-xl: 0.75rem;
+  --radius-2xl: 1rem;
+  --radius-3xl: 1.5rem;
+  --radius-pill: 9999px;
+
+  --space-0: 0px;
+  --space-px: 1px;
+  --space-0-5: 0.125rem;
+  --space-1: 0.25rem;
+  --space-1-5: 0.375rem;
+  --space-2: 0.5rem;
+  --space-2-5: 0.625rem;
+  --space-3: 0.75rem;
+  --space-3-5: 0.875rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-7: 1.75rem;
+  --space-8: 2rem;
+  --space-9: 2.25rem;
+  --space-10: 2.5rem;
+  --space-11: 2.75rem;
+  --space-12: 3rem;
+  --space-14: 3.5rem;
+  --space-16: 4rem;
+  --space-20: 5rem;
+  --space-24: 6rem;
+  --space-28: 7rem;
+  --space-32: 8rem;
+  --space-36: 9rem;
+  --space-40: 10rem;
+  --space-44: 11rem;
+  --space-48: 12rem;
+  --space-52: 13rem;
+  --space-56: 14rem;
+  --space-60: 15rem;
+  --space-64: 16rem;
+  --space-72: 18rem;
+  --space-80: 20rem;
+  --space-96: 24rem;
+
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-default: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+  --shadow-2xl: 0 25px 50px -12px rgb(0 0 0 / 0.25);
+}
 
 * {
   box-sizing: border-box;
@@ -9,65 +245,166 @@
 
 body {
   margin: 0;
-  font-family: 'DM Sans', sans-serif;
-  background: #f0ede8;
-  color: #1a1a2e;
+  font-family: var(--font-family-sans);
+  background: rgb(var(--color-background));
+  color: rgb(var(--color-text));
+}
+
+.print-document {
+  display: none;
+}
+
+.preview-screen {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.preview-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-2-5) 0;
+}
+
+.preview-pagination button {
+  border: 1px solid rgb(var(--color-border-strong));
+  border-radius: var(--radius-control);
+  background: white;
+  padding: var(--space-1-5) var(--space-3);
+  color: rgb(var(--color-text));
+}
+
+.preview-pagination button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.preview-pagination input {
+  width: 4.5rem;
+  border: 1px solid rgb(var(--color-border-strong));
+  border-radius: var(--radius-control);
+  padding: var(--space-1) var(--space-1-5);
+  text-align: center;
 }
 
 /* ─── Feuille A4 PAYSAGE ─────────────────────────────── */
 .a4-sheet {
   background: white;
-  width: 1123px;
-  min-height: 794px;
-  padding: 25px 30px;
+  width: 1123px; /* 297mm */
+  height: 794px; /* 210mm - hauteur fixe */
+  padding: 6mm 7mm;
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12);
   position: relative;
-  margin: 0 auto;
+  margin: 0 auto 16px auto;
+  box-sizing: border-box;
+  page-break-after: always;
+  overflow: hidden;
+  border-radius: 4px;
 }
 
 .a4-sheet.a4-landscape {
   width: 1123px;
-  min-height: 794px;
+  height: 794px;
 }
 
-/* ─── Grille 2×2 ──────────────────────────────────────── */
+.a4-sheet:last-child {
+  page-break-after: avoid;
+}
+
+/* ─── Grille dynamique pour 2 ou 3 étiquettes ────────── */
 .label-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  grid-template-rows: repeat(2, 1fr);
-  gap: 16px;
+  grid-template-columns: repeat(var(--label-columns, 2), minmax(0, 1fr));
+  grid-template-rows: repeat(var(--label-rows, 1), minmax(0, 1fr));
+  gap: 3mm;
   width: 100%;
   height: 100%;
-  min-height: 680px;
+  min-height: unset;
 }
+
+/* 2 étiquettes par page : 2 colonnes, 1 ligne */
+.label-grid-2 {
+  grid-template-columns: repeat(2, 1fr);
+  grid-template-rows: 1fr;
+}
+
+/* 3 étiquettes par page : 3 colonnes, 1 ligne */
+.label-grid-3 {
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: 1fr;
+}
+
+/* Cellule de la grille — conteneur direct de LabelCard */
+.label-grid-cell {
+  min-width: 0;
+  height: 100%;
+  max-height: 100%;
+  min-height: 0;
+  display: flex;
+  align-items: stretch;
+  overflow: hidden;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.label-grid-cell-empty {
+  visibility: hidden;
+}
+
+/* Les petites étiquettes utilisent des espacements compacts. */
+.label-grid-compact .label-card { width: 100%; }
+.label-grid-compact .label-card > .label-agency {
+  margin-bottom: 4px !important;
+  padding-bottom: 4px !important;
+}
+.label-grid-compact .label-card > .label-agency span {
+  font-size: var(--compact-agency-size, 14px) !important;
+  line-height: 1.2 !important;
+  letter-spacing: normal !important;
+  overflow-wrap: anywhere;
+}
+.label-grid-compact .print-label-content { margin-bottom: 0 !important; min-height: 0; }
+.label-grid-compact .print-label-content > div { padding: 3px !important; }
+.label-grid-compact .print-label-content span { font-size: var(--compact-value-size, 11px) !important; line-height: 1.25 !important; }
+.label-grid-compact .print-label-content .text-center { min-width: 0 !important; }
 
 /* ─── Étiquette STYLISÉE ─────────────────────────────── */
 .label-card {
   border: 1px solid #c8c5bf;
-  padding: 14px 16px 12px;
+  padding: 1mm;
   position: relative;
   overflow: hidden;
   background: white;
-  border-radius: 8px;
+  border-radius: 4px;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
+  justify-content: center;
   height: 100%;
-  min-height: 200px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-  transition: all 0.3s ease;
+  min-height: unset;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  transition:
+    transform 0.2s,
+    box-shadow 0.2s;
+}
+
+.label-card:hover {
+  transform: scale(1.01);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
 
 /* Bande colorée sur le côté */
 .label-card::before {
-  content: '';
+  content: "";
   position: absolute;
   top: 0;
   left: 0;
-  width: 6px;
+  width: 4px;
   height: 100%;
   background: linear-gradient(180deg, #e63946, #f4a261);
-  border-radius: 8px 0 0 8px;
+  border-radius: 4px 0 0 4px;
 }
 
 /* Badge de statut */
@@ -75,103 +412,307 @@ body {
   display: inline-block;
   padding: 0.15rem 0.6rem;
   border-radius: 9999px;
-  font-size: 0.6rem;
+  font-size: 0.55rem;
   font-weight: 700;
   letter-spacing: 0.05em;
 }
 
-/* Style spécial pour les champs */
+/* Style pour les champs */
 .label-card .field-label {
-  font-size: 0.65rem;
+  font-size: 0.5rem;
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: #9e9b95;
+  margin-bottom: 0.5px;
 }
 
 .label-card .field-value {
-  font-size: 0.95rem;
+  font-size: 0.75rem;
   font-weight: 500;
   color: #1a1a2e;
-  line-height: 1.4;
+  line-height: 1.2;
+  word-break: break-word;
+}
+
+/* Style pour le numéro de boîte */
+.label-card .box-number {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #1a1a2e;
+  letter-spacing: 0.05em;
+}
+
+/* ─── Ajustements pour le contenu ────────────────────── */
+.label-card .content {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  flex: 1;
+  /* gap: 1px; */
+}
+
+/* Style pour l'agence en haut */
+.label-card .agence-name {
+  font-size: 1.1rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  color: #1a1a2e;
+  margin-bottom: 2px;
+  line-height: 1.2;
+}
+
+/* Style pour le QR code en bas */
+.label-card .qr-wrapper {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 2px;
 }
 
 /* ─── Impression ──────────────────────────────────────── */
 @media print {
+  /* Seules les feuilles et leurs conteneurs participent à la pagination. */
+  body:has(.print-container)
+    #root
+    *:not(.print-container):not(.print-container *):not(
+      :has(.print-container)
+    ) {
+    display: none !important;
+  }
+
+  #root:has(.print-container),
+  #root *:has(.print-container) {
+    position: static !important;
+    display: block !important;
+    width: auto !important;
+    height: auto !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
+    max-width: none !important;
+    max-height: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    overflow: visible !important;
+    background: white !important;
+    box-shadow: none !important;
+  }
+
+  /* La modale d'agence devient un simple document imprimable */
+  .print-modal,
+  .print-modal > div,
+  .print-modal-dialog,
+  .print-modal-content {
+    position: static !important;
+    display: block !important;
+    width: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: white !important;
+    box-shadow: none !important;
+  }
+
   .no-print {
     display: none !important;
   }
 
+  .preview-screen {
+    display: none !important;
+  }
+
+  .print-document {
+    display: block !important;
+    width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: white !important;
+  }
+
+  html,
   body {
     background: white !important;
     margin: 0 !important;
     padding: 0 !important;
+    width: 100% !important;
+    height: auto !important;
   }
 
   .print-container {
     padding: 0 !important;
+    margin: 0 !important;
     background: white !important;
+    overflow: visible !important;
   }
 
+  /* ✅ Feuille A4 paysage : dimensions STRICTES */
   .a4-sheet {
     box-shadow: none !important;
-    width: 100vw !important;
-    min-height: 100vh !important;
+    width: 297mm !important;
+    min-width: 297mm !important;
+    max-width: 297mm !important;
+    /* Petite réserve pour les arrondis du moteur d'impression. */
+    height: 209.5mm !important;
+    min-height: 209.5mm !important;
+    max-height: 209.5mm !important;
     margin: 0 !important;
-    padding: 8mm 10mm !important;
-    height: 100vh !important;
-    page-break-after: always;
+    padding: 5mm 6mm !important;
+    overflow: hidden !important;
+    border-radius: 0 !important;
+    box-sizing: border-box !important;
+    position: relative !important;
+    display: block !important;
+    break-inside: avoid !important;
+    transform: none !important;
+  }
+
+  /* ✅ Saut de page uniquement entre les feuilles (pas après la dernière) */
+  .a4-sheet:not(:last-child) {
+    break-after: page !important;
+    page-break-after: always !important;
   }
 
   .a4-sheet:last-child {
-    page-break-after: avoid;
+    break-after: auto !important;
+    page-break-after: auto !important;
   }
 
+  /* Grille : hauteur explicite = 209.5mm - 10mm de padding.
+     Ne dépend plus de height:100% du parent → fiable sur la 1ère page */
   .label-grid {
-    grid-template-columns: repeat(2, 1fr) !important;
-    grid-template-rows: repeat(2, 1fr) !important;
-    gap: 12px !important;
-    min-height: auto !important;
-    height: 100% !important;
+    gap: 2mm !important;
+    width: 100% !important;
+    height: 199.5mm !important;
+    max-height: 199.5mm !important;
+    display: grid !important;
+    box-sizing: border-box !important;
+    overflow: hidden !important;
   }
 
-  .label-card {
-    border: 1px solid #c8c5bf !important;
+  .label-grid-2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    grid-template-rows: 1fr !important;
+  }
+
+  .label-grid-3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    grid-template-rows: 1fr !important;
+  }
+
+  /* ✅ Cellule de grille : contrainte stricte */
+  .label-grid-cell {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+    height: 100% !important;
+    max-height: 100% !important;
     min-height: 0 !important;
-    padding: 8px 10px !important;
-    height: 100% !important;
-    box-shadow: none !important;
-    border-radius: 4px !important;
+    display: flex !important;
+    align-items: stretch !important;
+    overflow: hidden !important;
+    box-sizing: border-box !important;
   }
 
+  .label-grid-cell-empty {
+    visibility: hidden !important;
+  }
+
+  /* ✅ Carte : remplit sa cellule, QR poussé en bas mais VISIBLE */
+  .label-card {
+    transform: none !important;
+    border: 1px solid #999 !important;
+    padding: 2mm !important;
+    box-shadow: none !important;
+    border-radius: 2px !important;
+    min-height: 0 !important;
+    height: 100% !important;
+    max-height: 100% !important;
+    width: 100% !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: space-between !important;
+    overflow: hidden !important;
+    box-sizing: border-box !important;
+  }
+
+  .label-card .print-label-content {
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+    justify-content: center !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+  }
+
+  /* ✅ QR code : ne rétrécit JAMAIS, toujours visible */
+  .label-card .print-label-qr {
+    flex: 0 0 auto !important;
+    display: flex !important;
+    justify-content: center !important;
+    margin-top: 1mm !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    overflow: visible !important;
+  }
+
+  .label-card::before {
+    width: 2px !important;
+  }
+
+  .label-card .field-label {
+    font-size: 6pt !important;
+  }
+  .label-card .field-value {
+    font-size: 8pt !important;
+  }
+  .label-card .box-number {
+    font-size: 7pt !important;
+  }
+  .label-card .agence-name {
+    font-size: 14pt !important;
+  }
+
+  .label-card .qr-wrapper svg,
+  .label-card .qr-wrapper canvas,
+  .label-card .qr-wrapper img {
+    width: 40px !important;
+    height: 40px !important;
+    max-width: 40px !important;
+    max-height: 40px !important;
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+  }
+
+  /* ✅ Format A4 paysage en mm explicites */
   @page {
-    size: A4 landscape;
+    size: 297mm 210mm;
     margin: 0;
   }
 }
 
 /* ─── Responsive ──────────────────────────────────────── */
-@media (max-width: 1200px) {
+@media screen and (max-width: 1200px) {
   .a4-sheet {
     width: 100%;
-    min-height: auto;
+    height: auto;
     padding: 16px;
+    aspect-ratio: 297 / 210;
   }
 }
 
-@media (max-width: 768px) {
+@media screen and (max-width: 768px) {
   .a4-sheet {
     padding: 12px;
+    aspect-ratio: auto;
+    height: auto;
   }
-  
-  .label-grid {
-    grid-template-columns: 1fr;
-    grid-template-rows: auto;
-    gap: 10px;
-  }
-  
-  .label-card {
-    min-height: 160px;
-    padding: 10px 12px;
-  }
+
+  /* Garder la disposition A4 choisie même sur un petit écran. */
 }

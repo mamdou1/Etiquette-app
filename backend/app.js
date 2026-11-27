@@ -10,7 +10,7 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
 app.use("/api", routes);
@@ -21,7 +21,10 @@ app.get("/api/health", (req, res) => {
 
 const startServer = async () => {
   try {
-    await initDatabase();
+    // Applique les migrations de schéma au démarrage, notamment après un pull.
+    // await initDatabase({ alter: true });
+    // await sequelize.sync();
+    await require('./services/labelService').ensureSchema();
     console.log("✅ Base de données MySQL prête");
 
     app.listen(PORT, () => {

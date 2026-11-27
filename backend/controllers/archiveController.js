@@ -1,6 +1,6 @@
 // controllers/archiveController.js
 const { ArchiveModel } = require("../models");
-const { pool } = require("../config/database");  // ✅ IMPORTANT
+const { pool } = require("../config/database");
 
 const searchArchives = async (req, res) => {
   try {
@@ -182,8 +182,6 @@ const getArchivesGrouped = async (req, res) => {
     }
     
     query += `
-      -- Une boîte est identifiée par son numéro, indépendamment du caissier
-      -- ou de l'agence associés à ses documents.
       GROUP BY numero_boite
       ORDER BY numero_boite ASC
     `;
@@ -280,6 +278,32 @@ const getBoiteDetail = async (req, res) => {
   }
 };
 
+// ─── ✅ NOUVEAU : GET /api/archives/print ─────────────────────
+// Récupérer les archives pour l'impression (par agence, type, annee)
+const getForPrint = async (req, res) => {
+  try {
+    const { agence_id, type_document_id, annee } = req.query;
+    
+    const archives = await ArchiveModel.getForPrint({
+      agenceId: agence_id ? parseInt(agence_id) : undefined,
+      typeDocumentId: type_document_id ? parseInt(type_document_id) : undefined,
+      annee: annee || undefined,
+    });
+
+    res.status(200).json({
+      success: true,
+      count: archives.length,
+      data: archives,
+    });
+  } catch (error) {
+    console.error('❌ getForPrint error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || "Erreur lors de la récupération des archives pour l'impression",
+    });
+  }
+};
+
 module.exports = {
   searchArchives,
   getDocumentTypes,
@@ -287,6 +311,7 @@ module.exports = {
   getAllArchives,
   deleteArchive,
   deleteAllArchives,
-  getArchivesGrouped,  
-  getBoiteDetail, 
+  getArchivesGrouped,
+  getBoiteDetail,
+  getForPrint,  // ✅ NOUVEAU
 };

@@ -1,0 +1,492 @@
+[
+  {
+    "fileName": "SALLE_1_Agence_Centrale_R6.xlsx",
+    "rows": 17,
+    "columnsBefore": 8,
+    "columnsAfter": 7,
+    "status": "transformed"
+  },
+  {
+    "fileName": "SALLE_1_ALBUM_R1.xlsx",
+    "rows": 81,
+    "columnsBefore": 8,
+    "columnsAfter": 7,
+    "status": "transformed"
+  },
+  {
+    "fileName": "SALLE_1_DECOM_R5_TJ.xlsx",
+    "rows": 47,
+    "columnsBefore": 8,
+    "columnsAfter": 7,
+    "status": "transformed"
+  },
+  {
+    "fileName": "SALLE_1_DFC_R10_TG.xlsx",
+    "rows": 55,
+    "columnsBefore": 8,
+    "columnsAfter": 7,
+    "status": "transformed"
+  },
+  {
+    "fileName": "SALLE_1_DFC_R10_TH.xlsx",
+    "rows": 31,
+    "columnsBefore": 8,
+    "columnsAfter": 7,
+    "status": "transformed"
+  },
+  {
+    "fileName": "SALLE_1_DFC_R10_TI.xlsx",
+    "rows": 80,
+    "columnsBefore": 8,
+    "columnsAfter": 7,
+    "status": "transformed"
+  },
+  {
+    "fileName": "SALLE_1_DFC_R5.xlsx",
+    "rows": 39,
+    "columnsBefore": 8,
+    "columnsAfter": 7,
+    "status": "transformed"
+  },
+  {
+    "fileName": "SALLE_1_DIVERS_R5_TK_1_à_7.xlsx",
+    "rows": 104,
+    "columnsBefore": 8,
+    "columnsAfter": 7,
+    "status": "transformed"
+  },
+  {
+    "fileName": "SALLE_1_DIVERS_R5.xlsx",
+    "rows": 97,
+    "columnsBefore": 8,
+    "columnsAfter": 7,
+    "status": "transformed"
+  },
+  {
+    "fileName": "SALLE_1_DMG_R10_TJ.xlsx",
+    "rows": 81,
+    "columnsBefore": 8,
+    "columnsAfter": 7,
+    "status": "transformed"
+  },
+  {
+    "fileName": "SALLE_1_DMG_R11_TE.xlsx",
+    "rows": 17,
+    "columnsBefore": 8,
+    "columnsAfter": 7,
+    "status": "transformed"
+  },
+  {
+    "fileName": "SALLE_1_DMG_R11_TE3.xlsx",
+    "rows": 65,
+    "columnsBefore": 8,
+    "columnsAfter": 7,
+    "status": "transformed"
+  },
+  {
+    "fileName": "SALLE_1_DMG_R11.xlsx",
+    "rows": 38,
+    "columnsBefore": 8,
+    "columnsAfter": 7,
+    "status": "transformed"
+  },
+  {
+    "fileName": "SALLE_1_DMG_R5_TK.xlsx",
+    "rows": 27,
+    "columnsBefore": 8,
+    "columnsAfter": 7,
+    "status": "transformed"
+  },
+  {
+    "fileName": "SALLE_1_DO_DRHL_DAJC_R5_TQ.xlsx",
+    "rows": 81,
+    "columnsBefore": 8,
+    "columnsAfter": 7,
+    "status": "transformed"
+  },
+  {
+    "fileName": "SALLE_1_DO_R5_TP.xlsx",
+    "rows": 126,
+    "columnsBefore": 8,
+    "columnsAfter": 7,
+    "status": "transformed"
+  },
+  {
+    "fileName": "SALLE_1_DO_R6_TH.xlsx",
+    "rows": 25,
+    "columnsBefore": 8,
+    "columnsAfter": 7,
+    "status": "transformed"
+  },
+  {
+    "fileName": "SALLE_1_DRHL_R11_TA.xlsx",
+    "rows": 214,
+    "columnsBefore": 8,
+    "columnsAfter": 7,
+    "status": "transformed"
+  },
+  {
+    "fileName": "SALLE_1_DRHL_R11_TE.xlsx",
+    "rows": 85,
+    "columnsBefore": 8,
+    "columnsAfter": 7,
+    "status": "transformed"
+  },
+  {
+    "fileName": "SALLE_1_DRHL_R11_TF.xlsx",
+    "rows": 79,
+    "columnsBefore": 9,
+    "columnsAfter": 8,
+    "status": "transformed"
+  },
+  {
+    "fileName": "SALLE_1_DRHL_R11.xlsx",
+    "rows": 197,
+    "columnsBefore": 8,
+    "columnsAfter": 7,
+    "status": "transformed"
+  },
+  {
+    "fileName": "SALLE_1_DRHL_R5_TL.xlsx",
+    "rows": 64,
+    "columnsBefore": 8,
+    "columnsAfter": 7,
+    "status": "transformed"
+  },
+  {
+    "fileName": "SALLE_1_DRHL_R5.xlsx",
+    "rows": 112,
+    "columnsBefore": 8,
+    "columnsAfter": 7,
+    "status": "transformed"
+  },
+  {
+    "fileName": "SALLE_1_NIAMAKORO_R_Chéque-MG_R10_TD.xlsx",
+    "rows": 51,
+    "columnsBefore": 8,
+    "columnsAfter": 7,
+    "status": "transformed"
+  },
+  {
+    "fileName": "SALLE_1_NIAMAKORO_R14_TR1.xlsx",
+    "rows": 117,
+    "columnsBefore": 8,
+    "columnsAfter": 7,
+    "status": "transformed"
+  },
+  {
+    "fileName": "SALLE_1_NIAMAKORO_R5_SN.xlsx",
+    "rows": 25,
+    "columnsBefore": 8,
+    "columnsAfter": 7,
+    "status": "transformed"
+  },
+  {
+    "fileName": "SALLE_1_SE_R11.xlsx",
+    "rows": 27,
+    "columnsBefore": 8,
+    "columnsAfter": 7,
+    "status": "transformed"
+  },
+  {
+    "fileName": "SALLE_2_Agence_centrale_R1.xlsx",
+    "rows": 15,
+    "columnsBefore": 9,
+    "columnsAfter": 8,
+    "status": "transformed"
+  },
+  {
+    "fileName": "SALLE_2_Bacodjicoroni_MG.xlsx",
+    "rows": 21,
+    "columnsBefore": 7,
+    "columnsAfter": 6,
+    "status": "transformed"
+  },
+  {
+    "fileName": "SALLE_2_Bacodjicoroni_R1.xlsx",
+    "rows": 8,
+    "columnsBefore": 9,
+    "columnsAfter": 8,
+    "status": "transformed"
+  },
+  {
+    "fileName": "SALLE_2_Bacodjicoroni_RSN.xlsx",
+    "rows": 23,
+    "columnsBefore": 9,
+    "columnsAfter": 8,
+    "status": "transformed"
+  },
+  {
+    "fileName": "SALLE_2_Bacodjicoroni.xlsx",
+    "rows": 10,
+    "columnsBefore": 9,
+    "columnsAfter": 8,
+    "status": "transformed"
+  },
+  {
+    "fileName": "SALLE_2_Bibliothèque_RNS.xlsx",
+    "rows": 17,
+    "columnsBefore": 8,
+    "columnsAfter": 7,
+    "status": "transformed"
+  },
+  {
+    "fileName": "SALLE_2_BKO_Coura_R6.xlsx",
+    "rows": 5,
+    "columnsBefore": 8,
+    "columnsAfter": 7,
+    "status": "transformed"
+  },
+  {
+    "fileName": "SALLE_2_BRHL_R30.xlsx",
+    "rows": 24,
+    "columnsBefore": 8,
+    "columnsAfter": 7,
+    "status": "transformed"
+  },
+  {
+    "fileName": "SALLE_2_DAC_R4.xlsx",
+    "rows": 4,
+    "columnsBefore": 9,
+    "columnsAfter": 8,
+    "status": "transformed"
+  },
+  {
+    "fileName": "SALLE_2_DAGC_R7.xlsx",
+    "rows": 15,
+    "columnsBefore": 9,
+    "columnsAfter": 8,
+    "status": "transformed"
+  },
+  {
+    "fileName": "SALLE_2_DAJC_R1.xlsx",
+    "rows": 44,
+    "columnsBefore": 9,
+    "columnsAfter": 8,
+    "status": "transformed"
+  },
+  {
+    "fileName": "SALLE_2_DCOM_R8.xlsx",
+    "rows": 12,
+    "columnsBefore": 9,
+    "columnsAfter": 8,
+    "status": "transformed"
+  },
+  {
+    "fileName": "SALLE_2_DFC_DIVERS_R7.xlsx",
+    "rows": 83,
+    "columnsBefore": 9,
+    "columnsAfter": 8,
+    "status": "transformed"
+  },
+  {
+    "fileName": "SALLE_2_DFC_R3.xlsx",
+    "rows": 9,
+    "columnsBefore": 9,
+    "columnsAfter": 8,
+    "status": "transformed"
+  },
+  {
+    "fileName": "SALLE_2_DFC_R7.xlsx",
+    "rows": 31,
+    "columnsBefore": 9,
+    "columnsAfter": 8,
+    "status": "transformed"
+  },
+  {
+    "fileName": "SALLE_2_DFC_SWIFT_CNCA_DIVERS.xlsx",
+    "rows": 127,
+    "columnsBefore": 9,
+    "columnsAfter": 8,
+    "status": "transformed"
+  },
+  {
+    "fileName": "SALLE_2_DG_R1.xlsx",
+    "rows": 32,
+    "columnsBefore": 9,
+    "columnsAfter": 8,
+    "status": "transformed"
+  },
+  {
+    "fileName": "SALLE_2_DG_R25.xlsx",
+    "rows": 30,
+    "columnsBefore": 9,
+    "columnsAfter": 8,
+    "status": "transformed"
+  },
+  {
+    "fileName": "SALLE_2_Divers_IGM_R27.xlsx",
+    "rows": 28,
+    "columnsBefore": 9,
+    "columnsAfter": 8,
+    "status": "transformed"
+  },
+  {
+    "fileName": "SALLE_2_DMG_DIVERS_R13.xlsx",
+    "rows": 69,
+    "columnsBefore": 9,
+    "columnsAfter": 8,
+    "status": "transformed"
+  },
+  {
+    "fileName": "SALLE_2_DMG_R30.xlsx",
+    "rows": 17,
+    "columnsBefore": 9,
+    "columnsAfter": 8,
+    "status": "transformed"
+  },
+  {
+    "fileName": "SALLE_2_DMG_RSN.xlsx",
+    "rows": 8,
+    "columnsBefore": 9,
+    "columnsAfter": 8,
+    "status": "transformed"
+  },
+  {
+    "fileName": "SALLE_2_DMP_R3.xlsx",
+    "rows": 28,
+    "columnsBefore": 9,
+    "columnsAfter": 8,
+    "status": "transformed"
+  },
+  {
+    "fileName": "SALLE_2_DO_R25.xlsx",
+    "rows": 18,
+    "columnsBefore": 9,
+    "columnsAfter": 8,
+    "status": "transformed"
+  },
+  {
+    "fileName": "SALLE_2_DO_R7.xlsx",
+    "rows": 28,
+    "columnsBefore": 9,
+    "columnsAfter": 8,
+    "status": "transformed"
+  },
+  {
+    "fileName": "SALLE_2_DRHL_DECOM_R3.xlsx",
+    "rows": 9,
+    "columnsBefore": 9,
+    "columnsAfter": 8,
+    "status": "transformed"
+  },
+  {
+    "fileName": "SALLE_2_DRHL_R30.xlsx",
+    "rows": 21,
+    "columnsBefore": 9,
+    "columnsAfter": 8,
+    "status": "transformed"
+  },
+  {
+    "fileName": "SALLE_2_État_quotidien_R34.xlsx",
+    "rows": 6,
+    "columnsBefore": 7,
+    "columnsAfter": 7,
+    "status": "already-prepared"
+  },
+  {
+    "fileName": "SALLE_2_Feuil10.xlsx",
+    "rows": 30,
+    "columnsBefore": 9,
+    "columnsAfter": 8,
+    "status": "transformed"
+  },
+  {
+    "fileName": "SALLE_2_Grand_Marché_R6.xlsx",
+    "rows": 9,
+    "columnsBefore": 8,
+    "columnsAfter": 7,
+    "status": "transformed"
+  },
+  {
+    "fileName": "SALLE_2_IGM_R1.xlsx",
+    "rows": 39,
+    "columnsBefore": 9,
+    "columnsAfter": 8,
+    "status": "transformed"
+  },
+  {
+    "fileName": "SALLE_2_IGM_R24.xlsx",
+    "rows": 96,
+    "columnsBefore": 9,
+    "columnsAfter": 8,
+    "status": "transformed"
+  },
+  {
+    "fileName": "SALLE_2_IGM_REGIONS_R24.xlsx",
+    "rows": 224,
+    "columnsBefore": 9,
+    "columnsAfter": 8,
+    "status": "transformed"
+  },
+  {
+    "fileName": "SALLE_2_IMG_R7.xlsx",
+    "rows": 29,
+    "columnsBefore": 9,
+    "columnsAfter": 8,
+    "status": "transformed"
+  },
+  {
+    "fileName": "SALLE_2_INSTANCE_MG_R7.xlsx",
+    "rows": 5,
+    "columnsBefore": 9,
+    "columnsAfter": 8,
+    "status": "transformed"
+  },
+  {
+    "fileName": "SALLE_2_Kalaban-Coura_R1.xlsx",
+    "rows": 8,
+    "columnsBefore": 9,
+    "columnsAfter": 8,
+    "status": "transformed"
+  },
+  {
+    "fileName": "SALLE_2_Kati_-_Bamako-Coura.xlsx",
+    "rows": 171,
+    "columnsBefore": 8,
+    "columnsAfter": 7,
+    "status": "transformed"
+  },
+  {
+    "fileName": "SALLE_2_KATI.xlsx",
+    "rows": 72,
+    "columnsBefore": 8,
+    "columnsAfter": 7,
+    "status": "transformed"
+  },
+  {
+    "fileName": "SALLE_2_Marché_Rose_R33.xlsx",
+    "rows": 91,
+    "columnsBefore": 9,
+    "columnsAfter": 8,
+    "status": "transformed"
+  },
+  {
+    "fileName": "SALLE_2_NGolomina_R3.xlsx",
+    "rows": 38,
+    "columnsBefore": 9,
+    "columnsAfter": 8,
+    "status": "transformed"
+  },
+  {
+    "fileName": "SALLE_2_Ouélessébougou_RSN.xlsx",
+    "rows": 41,
+    "columnsBefore": 9,
+    "columnsAfter": 8,
+    "status": "transformed"
+  },
+  {
+    "fileName": "SALLE_2_PNG_DAP.xlsx",
+    "rows": 30,
+    "columnsBefore": 7,
+    "columnsAfter": 6,
+    "status": "transformed"
+  },
+  {
+    "fileName": "SALLE_2_SEBENOKORO_PC_R6.xlsx",
+    "rows": 24,
+    "columnsBefore": 7,
+    "columnsAfter": 7,
+    "status": "already-prepared"
+  }
+]

@@ -1,14 +1,34 @@
-import React, { useMemo, useState } from "react";
-import * as XLSX from "xlsx";
+import { labelToRecord, StoredLabel } from '../services/labelService';
+import React, { useCallback, useMemo, useRef, useState, useEffect } from "react";
+import { isBoxField } from '../utils/boxField';
 import FileUpload from "../components/FileUpload";
 import SettingsPanel from "../components/SettingsPanel";
-import PrintPreview from "../components/PrintPreview";
+import PrintPreview, { PrintPreviewHandle } from "../components/PrintPreview";
 import { uploadExcel } from "../services/api";
-import { LabelRecord, BoxGroup, ColumnCount, LabelSize, FieldFilters } from "../types";
+import { getAllAgences, Agence } from "../services/agenceService";
+import {
+  getTypesByAgence,
+  TypeDocument,
+} from "../services/typeDocumentService";
+import {
+  LabelRecord,
+  BoxGroup,
+  ColumnCount,
+  LabelSize,
+  FieldFilters,
+} from "../types";
+import { useSettings } from "../contexts/SettingsContext";
+import { createPerfId, logFrontendPerf, perfNow, printWithPerformance } from "../utils/performance";
 
 // ─── Helpers ──────────────────────────────────────────────────
 
 const DATE_FIELD_RE = /\b(date|jour|production|expiration|echeance)\b/i;
+const ERROR_PAGE_SIZE = 10;
+
+interface ValidationRowError {
+  row: number | string;
+  sheet: string;
+}
 
 function normalizeText(value: unknown) {
   return String(value ?? "")
@@ -19,7 +39,9 @@ function normalizeText(value: unknown) {
 }
 
 function isDateField(field: string) {
-  return DATE_FIELD_RE.test(normalizeText(field));
+  const normalized = normalizeText(field);
+  if (/\b(annee|annees|year|years)\b/.test(normalized)) return false;
+  return DATE_FIELD_RE.test(normalized);
 }
 
 function parseRecordDate(value: unknown) {
@@ -65,98 +87,53 @@ function recordMatchesFilters(record: LabelRecord, filters: FieldFilters) {
 
 function isYearField(field: string) {
   const normalized = normalizeText(field);
-  return normalized === "annee" || normalized === "annees" || normalized.includes("annee");
-}
-
-function recordMatchesYears(record: LabelRecord, yearFields: string[], selectedYears: string[]) {
-  if (selectedYears.length === 0 || yearFields.length === 0) return true;
-  return yearFields.some((field) =>
-    String(record[field] ?? "")
-      .split(/[,;|]/)
-      .map((year) => year.trim())
-      .some((year) => selectedYears.includes(year)),
+  return (
+    normalized === "annee" ||
+    normalized === "annees" ||
+    normalized === "year" ||
+    normalized.includes("annee")
   );
 }
 
-// ─── Parsing Excel → Regroupement par boîte ──────────────────
-
-function cleanCellValue(header: string, value: unknown): string {
-  if (value == null) return "";
-
-  if (value instanceof Date && !Number.isNaN(value.getTime())) {
-    return value.toLocaleDateString("fr-FR");
+function recordMatchesSelectedYears(
+  record: LabelRecord,
+  selectedYears: string[],
+): boolean {
+  if (selectedYears.length === 0) return true;
+  
+  const sheetYear = String(record._sheetYear || "").trim();
+  if (sheetYear && selectedYears.includes(sheetYear)) return true;
+  
+  const yearFields = Object.keys(record).filter(f => 
+    isYearField(f) || 
+    f === 'annee' || 
+    f === 'année' ||
+    f === 'year'
+  );
+  
+  for (const field of yearFields) {
+    const value = String(record[field] ?? "").trim();
+    if (!value) continue;
+    
+    const years = value.split(/[,;|]/).map(y => y.trim()).filter(Boolean);
+    if (years.some(year => selectedYears.includes(year))) return true;
   }
-
-  const rawValue = String(value).trim();
-  if (
-    isDateField(header) &&
-    (typeof value === "number" || /^\d+(\.\d+)?$/.test(rawValue))
-  ) {
-    const serial = typeof value === "number" ? value : Number(value);
-    if (Number.isFinite(serial)) {
-      const parsed = XLSX.SSF.parse_date_code(serial);
-      if (parsed) {
-        const d = String(parsed.d).padStart(2, "0");
-        const m = String(parsed.m).padStart(2, "0");
-        return `${d}/${m}/${parsed.y}`;
-      }
+  
+  const boxNumberKeys = ["N° de la Boite", "N° de la Boîte", "numero_boite", "Numéro de la boite"];
+  for (const key of boxNumberKeys) {
+    const boxNumber = String(record[key] || "").trim();
+    if (boxNumber) {
+      const match = boxNumber.match(/\/(20\d{2})/);
+      if (match && selectedYears.includes(match[1])) return true;
     }
   }
-
-  return rawValue;
+  
+  return false;
 }
 
-function detectBoxField(headers: string[], records: LabelRecord[]): string {
-  if (headers.length === 0) return "";
-  if (records.length === 0) return headers[0];
-
-  const STRONG_BOX_KEYWORDS = [
-    "boîte", "boite", "box", "n°", "nº",
-    "lot", "pack", "carton", "caisse", "colis",
-  ];
-  const WEAK_BOX_KEYWORDS = [
-    "numero", "numéro", "number", "no", "n°", "nº",
-    "id", "identifiant",
-    "reference", "référence", "ref", "ident", "unité", "unite",
-    "dossier", "code", "contenant",
-  ];
-
-  let bestField = headers[0];
-  let bestScore = -1;
-
-  for (const header of headers) {
-    const nh = normalizeText(header);
-
-    const personFields = ["caissier", "caissiers", "caissiere", "preparateur", "prep", "nom", "prenom", "responsable", "agent", "employe", "employé", "personne"];
-    const isPersonField = personFields.some((kw) => nh.includes(kw));
-    const personPenalty = isPersonField ? 50 : 0;
-
-    const isDate = DATE_FIELD_RE.test(nh) || nh.includes("jour") || nh.includes("date");
-    const datePenalty = isDate ? 100 : 0;
-
-    const strongMatch = STRONG_BOX_KEYWORDS.some((kw) => nh.includes(kw) || kw.includes(nh));
-    const strongBonus = strongMatch ? 10.0 : 0;
-
-    const weakMatch = WEAK_BOX_KEYWORDS.some((kw) => nh.includes(kw));
-    const weakBonus = weakMatch ? 2.0 : 0;
-
-    const values = records.map((r) => String(r[header] ?? "").trim());
-    const uniqueCount = new Set(values).size;
-    const totalCount = values.length;
-    const duplicateRatio = uniqueCount > 0 ? 1 - uniqueCount / totalCount : 0;
-
-    const boxPatternCount = values.filter((v) => /^\d+[/]\d+/.test(v)).length;
-    const boxPatternBonus = boxPatternCount > totalCount * 0.5 ? 5.0 : 0;
-
-    const score = strongBonus + weakBonus + duplicateRatio + boxPatternBonus - datePenalty - personPenalty;
-
-    if (score > bestScore) {
-      bestScore = score;
-      bestField = header;
-    }
-  }
-
-  return bestField;
+function extractYearFromBoxNumber(boxNumber: string): string | null {
+  const match = boxNumber.match(/\/(20\d{2})/);
+  return match ? match[1] : null;
 }
 
 function mergeRecords(records: LabelRecord[]): LabelRecord[] {
@@ -179,164 +156,365 @@ function mergeRecords(records: LabelRecord[]): LabelRecord[] {
     }
   }
 
+  merged.__sourceRows = JSON.stringify(records.flatMap(record => {
+    try {
+      const rows = JSON.parse(String(record.__sourceRows || 'null'));
+      if (Array.isArray(rows)) return rows;
+    } catch { /* Conserver la ligne telle quelle si nécessaire. */ }
+    return [record];
+  }));
   return [merged];
 }
 
 function groupByBox(records: LabelRecord[], boxField: string): BoxGroup[] {
-  const groups = new Map<string, LabelRecord[]>();
+  const groups = new Map<string, { records: LabelRecord[]; year: string }>();
+  
   for (const record of records) {
     const boxVal = String(record[boxField] ?? "").trim() || "Sans boîte";
-    if (!groups.has(boxVal)) groups.set(boxVal, []);
-    groups.get(boxVal)!.push(record);
+    const year = String(record._sheetYear || record.annee || record.année || "").trim();
+    
+    if (!groups.has(boxVal)) {
+      groups.set(boxVal, { records: [], year });
+    }
+    groups.get(boxVal)!.records.push(record);
   }
+  
   return Array.from(groups.entries())
-    .map(([boxNumber, recs]) => ({
+    .map(([boxNumber, { records, year }]) => ({
       boxNumber,
-      records: mergeRecords(recs),
+      records: mergeRecords(records),
+      year: year || extractYearFromBoxNumber(boxNumber) || undefined,
     }))
-    .sort((a, b) => a.boxNumber.localeCompare(b.boxNumber, undefined, { numeric: true }));
-}
-
-function parseExcelToBoxes(file: File): Promise<{ filename: string; boxes: BoxGroup[]; records: LabelRecord[]; fields: string[]; boxKey: string }> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const data = new Uint8Array(e.target?.result as ArrayBuffer);
-        const workbook = XLSX.read(data, { type: "array" });
-        const sheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[sheetName];
-        if (!worksheet) throw new Error("La feuille Excel n'a pu être lue");
-
-        const allRows: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-        if (!allRows.length) throw new Error("Le fichier Excel est vide");
-
-        let headerRowIndex = 0;
-        for (let i = 0; i < Math.min(allRows.length, 10); i++) {
-          const row = allRows[i];
-          const nonEmptyCells = row.filter((cell: any) => cell && String(cell).trim());
-          if (nonEmptyCells.length >= 3) {
-            const textCount = nonEmptyCells.filter(
-              (cell: any) => isNaN(cell) && String(cell).length > 2,
-            ).length;
-            if (textCount >= nonEmptyCells.length * 0.5) {
-              headerRowIndex = i;
-              break;
-            }
-          }
-        }
-
-        const headers = allRows[headerRowIndex]
-          .map((h: any) => (h ? String(h).trim() : ""))
-          .filter((h: string) => h);
-
-        const records: LabelRecord[] = [];
-        for (let i = headerRowIndex + 1; i < allRows.length; i++) {
-          const row = allRows[i];
-          if (!row?.some((cell: any) => cell && String(cell).trim())) continue;
-          const record: LabelRecord = {};
-          headers.forEach((header: string, idx: number) => {
-            record[header] = cleanCellValue(header, row[idx] ?? "");
-          });
-          records.push(record);
-        }
-
-        if (!records.length) throw new Error("Aucune donnée valide trouvée");
-
-        const boxKey = detectBoxField(headers, records);
-        const boxes = groupByBox(records, boxKey);
-
-        resolve({ filename: file.name, boxes, records, fields: headers, boxKey });
-      } catch (err: any) {
-        reject(err);
+    .sort((a, b) => {
+      if (a.year !== b.year) {
+        return (a.year || '').localeCompare(b.year || '');
       }
-    };
-    reader.onerror = () => reject(new Error("Erreur de lecture du fichier"));
-    reader.readAsArrayBuffer(file);
-  });
+      return a.boxNumber.localeCompare(b.boxNumber, undefined, { numeric: true });
+    });
 }
 
 // ─── Composant Home ───────────────────────────────────────────
 
 const Home: React.FC = () => {
+  const previewRef = useRef<PrintPreviewHandle>(null);
+  const {
+    cols,
+    size,
+    visibleFields,
+    filters,
+    setCols,
+    setSize,
+    setVisibleFields,
+    setFilters,
+    updateFilter,
+    clearFilters,
+    toggleField,
+    reorderFields,
+  } = useSettings();
+
   const [boxes, setBoxes] = useState<BoxGroup[]>([]);
   const [rawRecords, setRawRecords] = useState<LabelRecord[]>([]);
   const [fields, setFields] = useState<string[]>([]);
-  const [visibleFields, setVisibleFields] = useState<string[]>([]);
-  const [cols, setCols] = useState<ColumnCount>(2);
-  const [size, setSize] = useState<LabelSize>("md");
-  const [filters, setFilters] = useState<FieldFilters>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [validationErrors, setValidationErrors] = useState<ValidationRowError[]>([]);
+  const [validationErrorPage, setValidationErrorPage] = useState(0);
   const [filename, setFilename] = useState("");
   const [boxField, setBoxField] = useState<string>("");
   const [enrichedInfo, setEnrichedInfo] = useState<{ original: number; saved: number } | null>(null);
   const [uploading, setUploading] = useState(false);
   const [selectedYears, setSelectedYears] = useState<string[]>([]);
+  const [detectedFields, setDetectedFields] = useState<string[]>([]);
+  const [availableYearsFromFile, setAvailableYearsFromFile] = useState<string[]>([]);
+  const [sheetNames, setSheetNames] = useState<string[]>([]);
+  const [uploadSuccess, setUploadSuccess] = useState(false);
+  const [importStats, setImportStats] = useState<{
+    saved: number;
+    doublons: number;
+    agences: number;
+    nouvellesAgences: number;
+    types: number;
+    nouveauxTypes: number;
+    relations: number;
+    isReimport: boolean;
+    message?: string;
+  } | null>(null);
 
-  // On conserve les lignes d'origine : les filtres (notamment les années)
-  // doivent être appliqués avant de fusionner les données d'une même boîte.
+  const [agences, setAgences] = useState<Agence[]>([]);
+  const [types, setTypes] = useState<TypeDocument[]>([]);
+  const [selectedAgenceId, setSelectedAgenceId] = useState<number | null>(null);
+  const [selectedTypeId, setSelectedTypeId] = useState<number | null>(null);
+  const [loadingAgences, setLoadingAgences] = useState(false);
+
+  useEffect(() => {
+    const loadAgences = async () => {
+      setLoadingAgences(true);
+      try {
+        const response = await getAllAgences();
+        setAgences(response.data);
+        if (response.data.length > 0) {
+          setSelectedAgenceId(response.data[0].id);
+        }
+      } catch (err) {
+        console.error("Erreur chargement agences", { statusCode: (err as any)?.response?.status || 0 });
+        setError("Impossible de charger les agences");
+      } finally {
+        setLoadingAgences(false);
+      }
+    };
+    loadAgences();
+  }, []);
+
+  useEffect(() => {
+    const loadTypes = async () => {
+      if (!selectedAgenceId) {
+        setTypes([]);
+        setSelectedTypeId(null);
+        return;
+      }
+
+      try {
+        const response = await getTypesByAgence(selectedAgenceId);
+        setTypes(response.data);
+        if (response.data.length > 0) {
+          setSelectedTypeId(response.data[0].id);
+        } else {
+          setSelectedTypeId(null);
+        }
+      } catch (err) {
+        console.error("Erreur chargement types", { statusCode: (err as any)?.response?.status || 0 });
+        setTypes([]);
+        setSelectedTypeId(null);
+      }
+    };
+    loadTypes();
+  }, [selectedAgenceId]);
+
   const allRecords = rawRecords;
-  const yearFields = useMemo(() => fields.filter(isYearField), [fields]);
-  const availableYears = useMemo(() => [...new Set(
-    allRecords.flatMap((record) => yearFields.flatMap((field) =>
-      String(record[field] ?? "").split(/[,;|]/).map((year) => year.trim()).filter(Boolean),
-    )),
-  )].sort((a, b) => b.localeCompare(a, undefined, { numeric: true })), [allRecords, yearFields]);
-
+  
   const filteredRecords = useMemo(
-    () => allRecords.filter((record) =>
-      recordMatchesFilters(record, filters) && recordMatchesYears(record, yearFields, selectedYears),
-    ),
-    [allRecords, filters, yearFields, selectedYears],
+    () =>
+      allRecords.filter((record) => {
+        const matchesFilters = recordMatchesFilters(record, filters);
+        if (!matchesFilters) return false;
+        
+        const matchesYears = recordMatchesSelectedYears(record, selectedYears);
+        if (!matchesYears) return false;
+        
+        return true;
+      }),
+    [allRecords, filters, selectedYears],
   );
+
+  const availableYears = useMemo(() => {
+    if (availableYearsFromFile.length > 0) {
+      return availableYearsFromFile;
+    }
+    return [...new Set(
+      allRecords.flatMap((record) => {
+        const years: string[] = [];
+        if (record._sheetYear) years.push(String(record._sheetYear));
+        Object.keys(record).forEach(key => {
+          if (isYearField(key) || key === 'annee' || key === 'année') {
+            const value = String(record[key] ?? "").trim();
+            if (value) {
+              value.split(/[,;|]/).forEach(y => {
+                const trimmed = y.trim();
+                if (trimmed) years.push(trimmed);
+              });
+            }
+          }
+        });
+        return years;
+      })
+    )].sort();
+  }, [allRecords, availableYearsFromFile]);
 
   const filteredBoxes = useMemo(() => {
     if (!boxField || !filteredRecords.length) return [];
     return groupByBox(filteredRecords, boxField);
   }, [filteredRecords, boxField]);
 
+  const displayError = (
+    errorMessage: string,
+    rowErrors: ValidationRowError[] = [],
+  ) => {
+    let displayMsg = errorMessage;
+    let suggestion = '';
+    
+    if (errorMessage.includes("type") && errorMessage.includes("Pièce de caisse")) {
+      suggestion = '\n💡 Astuce: Sélectionnez "Pièces de caisse" dans le menu déroulant.';
+    } else if (errorMessage.includes("agence")) {
+      suggestion = '\n💡 Astuce: Vérifiez que le nom de l\'agence correspond à celui sélectionné.';
+    } else if (errorMessage.includes("créer un nouveau type")) {
+      suggestion = '\n💡 Astuce: Créez d\'abord ce type dans la section "Types de documents".';
+    }
+    
+    setError(displayMsg + suggestion);
+    setValidationErrors(rowErrors);
+    setValidationErrorPage(0);
+    setBoxes([]);
+    setRawRecords([]);
+    setUploadSuccess(false);
+  };
+
   const handleFile = async (file: File) => {
+    if (!selectedAgenceId) {
+      setError("Veuillez sélectionner une agence");
+      return;
+    }
+    if (!selectedTypeId) {
+      setError("Veuillez sélectionner un type de document");
+      return;
+    }
+
+    const perfId = createPerfId();
+    const importStartedAt = perfNow();
+    logFrontendPerf("import-start", 0, { fileBytes: file.size }, perfId);
     setLoading(true);
     setError("");
+    setValidationErrors([]);
+    setValidationErrorPage(0);
     setEnrichedInfo(null);
-    
-    try {
-      // 1. Parser le fichier Excel (frontend)
-      const result = await parseExcelToBoxes(file);
-      
-      setBoxes(result.boxes);
-      setRawRecords(result.records);
-      setFields(result.fields);
-      setVisibleFields(result.fields);
-      setFilename(result.filename);
-      setBoxField(result.boxKey);
-      setFilters({});
-      setSelectedYears([]);
+    setImportStats(null);
+    setUploadSuccess(false);
+    setBoxes([]);
+    setRawRecords([]);
 
-      // 2. ✅ Envoyer les données au backend pour stockage
-      setUploading(true);
+    setFilename(file.name);
+    setFilters({});
+    setAvailableYearsFromFile([]);
+    setSelectedYears([]);
+    setSheetNames([]);
+    setUploading(true);
+    setError("⏳ Envoi, lecture et enregistrement du fichier en cours...");
+
+    try {
+      
       try {
-        const response = await uploadExcel(file);
-        if (response.success && response.enriched) {
-          setEnrichedInfo({
-            original: response.originalCount || 0,
-            saved: response.savedCount || 0,
-          });
+        const formDataStartedAt = perfNow();
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("agence_id", String(selectedAgenceId));
+        formData.append("type_document_id", String(selectedTypeId));
+        logFrontendPerf("upload-formdata-preparation", perfNow() - formDataStartedAt, {
+          fileBytes: file.size,
+        }, perfId);
+
+        const response = await uploadExcel(formData, perfId);
+        
+        logFrontendPerf("import-roundtrip-complete", perfNow() - importStartedAt, {
+          statusSuccess: Boolean(response?.success),
+          enrichedBoxes: Array.isArray(response?.enriched) ? response.enriched.length : 0,
+          rows: Number(response?.totalLignes || 0),
+        }, perfId);
+        
+        // ✅ Vérifier si la réponse contient des données
+        if (response && response.success) {
+          console.log("✅ Upload réussi, données reçues");
+          
+          if (response.enriched && response.enriched.length > 0) {
+            console.log(`📦 ${response.enriched.length} boîtes enrichies reçues`);
+            
+            const metaFields = response.metaFields || [];
+            const metaFieldNames = metaFields.map((mf: { name: string }) => mf.name);
+
+            const allFields: string[] = response.fields || ["numero_boite", ...metaFieldNames];
+            setFields(allFields);
+            setBoxField(response.boxField || 'numero_boite');
+            setVisibleFields(allFields);
+            setDetectedFields(allFields);
+
+            if (response.availableYears) {
+              setAvailableYearsFromFile(response.availableYears);
+              setSelectedYears(response.availableYears);
+            }
+            setSheetNames(response.sheets || []);
+
+            const responsePreparationStartedAt = perfNow();
+            const enrichedBoxes: BoxGroup[] = response.enriched.map((item: StoredLabel) => ({
+              boxNumber: item.numero_boite, records: [labelToRecord(item)], year: item.annee,
+            }));
+
+            // ✅ AFFICHER LES ÉTIQUETTES
+            setBoxes(enrichedBoxes);
+            setUploadSuccess(true);
+            
+            const allRecords: LabelRecord[] = enrichedBoxes.flatMap(box => box.records);
+            setRawRecords(allRecords);
+            logFrontendPerf("import-response-preparation", perfNow() - responsePreparationStartedAt, {
+              boxes: enrichedBoxes.length,
+              labels: allRecords.length,
+              fields: allFields.length,
+            }, perfId);
+
+            setEnrichedInfo({
+              original: response.totalLignes || 0,
+              saved: response.savedCount || 0,
+            });
+
+            setImportStats({
+              saved: response.savedCount || 0,
+              doublons: 0,
+              agences: response.agenceTrouvees?.length || 0,
+              nouvellesAgences: 0,
+              types: response.typesTrouves?.length || 0,
+              nouveauxTypes: response.metaFieldsCrees || 0,
+              relations: response.totalBoites || 0,
+              isReimport: false,
+              message: response.message || "Importation réussie",
+            });
+            
+            setError(""); // ✅ Effacer l'erreur
+            console.log("✅ Étiquettes affichées avec succès !");
+            
+          } else {
+            throw new Error("Le serveur n’a confirmé aucune étiquette enregistrée. Vérifiez l’import.");
+          }
+        } else {
+          console.warn("⚠️ Format de réponse inattendu", { hasResponse: Boolean(response) });
+          setError("La réponse du serveur n'est pas au format attendu");
         }
+        
       } catch (err: any) {
-        console.warn("⚠️ Stockage dans les archives échoué:", err.message);
-        // Ne pas bloquer l'affichage si le stockage échoue
+        console.warn("⚠️ Validation/Stockage échoué", { statusCode: err.response?.status || 0 });
+        
+        let errorMessage = "Erreur lors de la validation";
+        if (err.response?.data?.error) {
+          errorMessage = err.response.data.error;
+        } else if (err.message) {
+          errorMessage = err.message;
+        }
+        
+        const rowErrors = Array.isArray(err.response?.data?.validationErrors)
+          ? err.response.data.validationErrors
+          : [];
+        displayError(errorMessage, rowErrors);
+        
       } finally {
         setUploading(false);
       }
-
     } catch (err: any) {
+      console.error("❌ Erreur de lecture du fichier", { errorName: err?.name || "Error" });
       setError(err.message || "Erreur lors de la lecture du fichier");
+      setBoxes([]);
+      setRawRecords([]);
     } finally {
       setLoading(false);
     }
   };
+
+  const handleLabelSaved = useCallback((label: StoredLabel) => {
+    const updated = labelToRecord(label);
+    setRawRecords(previous => previous.map(record => String(record.__labelId) === String(label.id) ? updated : record));
+    setBoxes(previous => previous.map(box => box.records.some(record => String(record.__labelId) === String(label.id))
+      ? { ...box, boxNumber: label.numero_boite, year: label.annee, records: [updated] } : box));
+    setAvailableYearsFromFile([]);
+    setSelectedYears([]);
+  }, []);
+
+  const requestPrint = useCallback(() => previewRef.current?.printAll(), []);
+  const executePrint = useCallback(() => printWithPerformance("home-preview"), []);
 
   const reset = () => {
     setBoxes([]);
@@ -346,52 +524,36 @@ const Home: React.FC = () => {
     setFilters({});
     setFilename("");
     setError("");
+    setValidationErrors([]);
+    setValidationErrorPage(0);
     setEnrichedInfo(null);
     setSelectedYears([]);
+    setAvailableYearsFromFile([]);
+    setSheetNames([]);
+    setImportStats(null);
+    setDetectedFields([]);
+    setUploadSuccess(false);
   };
 
-  const toggleField = (key: string) => {
-    setVisibleFields((prev) =>
-      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key],
-    );
-  };
-
-  const handleReorderFields = (startIndex: number, endIndex: number) => {
-    setVisibleFields((prev) => {
-      const newOrder = [...prev];
-      const [removed] = newOrder.splice(startIndex, 1);
-      newOrder.splice(endIndex, 0, removed);
-      return newOrder;
+  const toggleYear = (year: string) => {
+    setSelectedYears(prev => {
+      if (prev.includes(year)) {
+        return prev.filter(y => y !== year);
+      } else {
+        return [...prev, year].sort();
+      }
     });
   };
 
-  const updateFilter = (
-    field: string,
-    key: "value" | "from" | "to",
-    value: string,
-  ) => {
-    setFilters((prev) => ({
-      ...prev,
-      [field]: {
-        ...prev[field],
-        [key]: value,
-      },
-    }));
-  };
-
-  const clearFilters = () => setFilters({});
-  const toggleYear = (year: string) => {
-    setSelectedYears((previous) =>
-      previous.length === 0
-        ? availableYears.filter((availableYear) => availableYear !== year)
-        : previous.includes(year)
-          ? previous.filter((selectedYear) => selectedYear !== year)
-          : [...previous, year],
-    );
-  };
-
-  const hasData = boxes.length > 0;
+  const statisticsRecords = useMemo(() => filteredBoxes.flatMap(box => box.records), [filteredBoxes]);
+  const hasData = boxes.length > 0 && uploadSuccess;
   const totalBoxes = filteredBoxes.length;
+  const validationErrorPages = Math.ceil(validationErrors.length / ERROR_PAGE_SIZE);
+  const visibleValidationErrors = validationErrors.slice(
+    validationErrorPage * ERROR_PAGE_SIZE,
+    (validationErrorPage + 1) * ERROR_PAGE_SIZE,
+  );
+
 
   return (
     <div className="flex flex-1 min-h-[calc(100vh-120px)]">
@@ -405,7 +567,7 @@ const Home: React.FC = () => {
                 height="72"
                 viewBox="0 0 24 24"
                 fill="none"
-                stroke="#1a1a2e"
+                stroke="rgb(var(--color-primary))"
                 strokeWidth="0.8"
               >
                 <rect x="3" y="3" width="7" height="7" />
@@ -419,22 +581,182 @@ const Home: React.FC = () => {
               <p className="text-sm text-muted font-mono">
                 Les données seront regroupées par boîte et converties en étiquettes imprimables
               </p>
-            </div>
-            <FileUpload onFile={handleFile} loading={loading || uploading} />
-            
-            {error && (
-              <p className="mt-3 text-sm text-accent font-mono text-center bg-accent-light border border-accent px-3 py-2 rounded">
-                ⚠ {error}
+              <p className="text-xs text-muted/60 font-mono mt-1">
+                📄 Supporte les fichiers avec plusieurs feuilles (une par année)
               </p>
+            </div>
+
+            <div className="space-y-3 mb-4">
+              <div>
+                <label className="block font-mono text-xs text-muted mb-1 font-semibold">
+                  Agence *
+                </label>
+                <select
+                  value={selectedAgenceId || ""}
+                  onChange={(e) => setSelectedAgenceId(Number(e.target.value))}
+                  className="ui-field w-full"
+                  disabled={loadingAgences}
+                >
+                  <option value="">Sélectionner une agence</option>
+                  {agences.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.nom} {!a.active && "(inactive)"}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-mono text-xs text-muted mb-1 font-semibold">
+                  Type de document *
+                </label>
+                <select
+                  value={selectedTypeId || ""}
+                  onChange={(e) => setSelectedTypeId(Number(e.target.value))}
+                  className="ui-field w-full"
+                  disabled={!selectedAgenceId || loadingAgences}
+                >
+                  <option value="">Sélectionner un type</option>
+                  {types.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.nom} {!t.active && "(inactif)"}
+                    </option>
+                  ))}
+                </select>
+                {selectedAgenceId && types.length === 0 && !loadingAgences && (
+                  <p className="text-xs text-amber-600 mt-1">
+                    ⚠️ Aucun type assigné à cette agence
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <FileUpload onFile={handleFile} loading={loading || uploading} />
+
+            {error && (
+              <div className="mt-3 p-4 rounded border border-red-500 bg-red-50">
+                <div className="flex items-start gap-3">
+                  <div className="text-red-500 text-xl">❌</div>
+                  <div className="flex-1">
+                    <p className="text-sm text-red-700 font-mono font-semibold">
+                      Erreur de validation
+                    </p>
+                    <p className="text-sm text-red-600 font-mono whitespace-pre-line">
+                      {error}
+                    </p>
+                    {validationErrors.length > 0 && (
+                      <div className="mt-3 rounded border border-red-200 bg-white p-3">
+                        <ul className="space-y-1 font-mono text-xs text-red-700">
+                          {visibleValidationErrors.map((rowError, index) => (
+                            <li key={`${rowError.sheet}-${rowError.row}-${index}`}>
+                              Feuille « {rowError.sheet} », ligne {rowError.row}
+                            </li>
+                          ))}
+                        </ul>
+                        {validationErrorPages > 1 && (
+                          <div className="mt-3 flex items-center justify-between gap-3 border-t border-red-100 pt-3">
+                            <button
+                              type="button"
+                              onClick={() => setValidationErrorPage((page) => Math.max(0, page - 1))}
+                              disabled={validationErrorPage === 0}
+                              className="rounded border border-red-300 px-3 py-1 font-mono text-xs text-red-700 disabled:cursor-not-allowed disabled:opacity-40"
+                            >
+                              Précédent
+                            </button>
+                            <span className="font-mono text-xs text-red-600">
+                              Page {validationErrorPage + 1} sur {validationErrorPages} — {validationErrors.length} lignes
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setValidationErrorPage((page) => Math.min(validationErrorPages - 1, page + 1))}
+                              disabled={validationErrorPage >= validationErrorPages - 1}
+                              className="rounded border border-red-300 px-3 py-1 font-mono text-xs text-red-700 disabled:cursor-not-allowed disabled:opacity-40"
+                            >
+                              Suivant
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    {(error.includes("type") || error.includes("Pièce")) && (
+                      <div className="mt-2 p-2 bg-red-100 rounded border border-red-300">
+                        <p className="text-xs text-red-700 font-mono">
+                          💡 Astuce: Vérifiez que le type de document dans votre fichier Excel 
+                          correspond à celui sélectionné dans le menu déroulant.
+                        </p>
+                        <p className="text-xs text-red-600 font-mono mt-1">
+                          📌 Exemple: "Pièce de caisse" → sélectionnez "Pièces de caisse"
+                        </p>
+                      </div>
+                    )}
+                    {error.includes("agence") && (
+                      <div className="mt-2 p-2 bg-red-100 rounded border border-red-300">
+                        <p className="text-xs text-red-700 font-mono">
+                          💡 Astuce: Vérifiez que le nom de l'agence dans votre fichier Excel 
+                          correspond à celui sélectionné dans le menu déroulant.
+                        </p>
+                      </div>
+                    )}
+                    {error.includes("créer") && (
+                      <div className="mt-2 p-2 bg-amber-100 rounded border border-amber-300">
+                        <p className="text-xs text-amber-700 font-mono">
+                          💡 Le type que vous utilisez n'existe pas encore dans la base de données.
+                          Veuillez le créer d'abord dans la section "Types de documents".
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
             )}
 
-            {enrichedInfo && (
-              <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded">
-                <p className="text-sm text-green-700 font-mono">
-                  ✅ Stockage terminé : 
-                  <span className="font-bold"> {enrichedInfo.original}</span> ligne(s) traitées
-                  → <span className="font-bold">{enrichedInfo.saved}</span> boîte(s) unique(s) sauvegardée(s) dans les archives
+            {importStats && uploadSuccess && (
+              <div
+                className={`mt-3 p-3 rounded border ${
+                  importStats.isReimport
+                    ? "bg-amber-50 border-amber-200"
+                    : "bg-green-50 border-green-200"
+                }`}
+              >
+                <p
+                  className={`text-sm font-mono ${
+                    importStats.isReimport ? "text-amber-700" : "text-green-700"
+                  }`}
+                >
+                  {importStats.isReimport ? "🔄" : "✅"}
+                  {importStats.message ||
+                    `Stockage terminé : ${importStats.saved} boîte(s) sauvegardée(s)`}
+                  {importStats.doublons > 0 && (
+                    <span className="text-amber-600 ml-2">
+                      ⚠️ {importStats.doublons} doublon(s) ignoré(s)
+                    </span>
+                  )}
                 </p>
+                <div className="mt-1 text-xs text-muted font-mono flex flex-wrap gap-3">
+                  <span>🏢 {importStats.agences} agence(s) trouvée(s)</span>
+                  {importStats.nouvellesAgences > 0 && (
+                    <span className="text-accent">
+                      ✨ +{importStats.nouvellesAgences} nouvelle(s)
+                    </span>
+                  )}
+                  <span>📄 {importStats.types} type(s) trouvé(s)</span>
+                  {importStats.nouveauxTypes > 0 && (
+                    <span className="text-accent">
+                      ✨ +{importStats.nouveauxTypes} nouveau(x)
+                    </span>
+                  )}
+                  <span>🔗 {importStats.relations} relation(s) créée(s)</span>
+                </div>
+                {detectedFields.length > 0 && (
+                  <p className="mt-1 text-[10px] text-muted/60 font-mono">
+                    🔍 Champs détectés : {detectedFields.join(", ")}
+                  </p>
+                )}
+                {sheetNames.length > 0 && (
+                  <p className="mt-1 text-[10px] text-muted/60 font-mono">
+                    📑 Feuilles : {sheetNames.join(", ")}
+                  </p>
+                )}
               </div>
             )}
 
@@ -442,11 +764,24 @@ const Home: React.FC = () => {
               <p className="font-mono text-[10px] text-muted uppercase tracking-widest mb-2">
                 Structure Excel attendue
               </p>
+              <p className="text-xs text-muted/60 font-mono mb-2">
+                📌 Chaque feuille peut correspondre à une année (ex: 2021, 2022, 2023)
+              </p>
               <table className="w-full text-xs font-mono border-collapse">
                 <thead>
                   <tr className="bg-surface">
-                    {["N° de la Boite", "Date de Production", "Type de Document", "Nom des caissiers", "Nom de l'Agence", "Année"].map((h) => (
-                      <th key={h} className="border border-border px-2 py-1 text-left text-muted font-medium">
+                    {[
+                      "N° de la Boite",
+                      "Date de Production",
+                      "Type de Document",
+                      "Nom des caissiers",
+                      "Nom de l'Agence",
+                      "Année",
+                    ].map((h) => (
+                      <th
+                        key={h}
+                        className="border border-border px-2 py-1 text-left text-muted font-medium"
+                      >
                         {h}
                       </th>
                     ))}
@@ -454,13 +789,31 @@ const Home: React.FC = () => {
                 </thead>
                 <tbody>
                   <tr>
-                    {["BOX-001", "08/08/2023", "Pièces de caisse", "Djénéba C.", "DGEI", "2023" ].map((c, i) => (
-                      <td key={i} className="border border-border px-2 py-1">{c}</td>
+                    {[
+                      "001/2023",
+                      "08/08/2023",
+                      "Pièces de caisse",
+                      "Djénéba C.",
+                      "DGEI",
+                      "2023",
+                    ].map((c, i) => (
+                      <td key={i} className="border border-border px-2 py-1">
+                        {c}
+                      </td>
                     ))}
                   </tr>
                   <tr>
-                    {["BOX-002", "09/08/2023", "Pièces de caisse", "Moussa D.", "DGEI", "2023"].map((c, i) => (
-                      <td key={i} className="border border-border px-2 py-1">{c}</td>
+                    {[
+                      "002/2023",
+                      "09/08/2023",
+                      "Pièces de caisse",
+                      "Moussa D.",
+                      "DGEI",
+                      "2023",
+                    ].map((c, i) => (
+                      <td key={i} className="border border-border px-2 py-1">
+                        {c}
+                      </td>
                     ))}
                   </tr>
                 </tbody>
@@ -471,33 +824,28 @@ const Home: React.FC = () => {
       ) : (
         <>
           <SettingsPanel
+            statisticsRecords={statisticsRecords}
             fields={fields}
-            visibleFields={visibleFields}
-            cols={cols}
-            size={size}
-            filters={filters}
-            onToggleField={toggleField}
-            onReorderFields={handleReorderFields}
-            onColsChange={setCols}
-            onSizeChange={setSize}
-            onFilterChange={updateFilter}
-            onClearFilters={clearFilters}
-            onPrint={() => window.print()}
-            onReset={reset}
             filename={filename}
             total={totalBoxes}
             sourceTotal={boxes.length}
             availableYears={availableYears}
             selectedYears={selectedYears}
             onToggleYear={toggleYear}
+            onPrint={requestPrint}
+            onReset={reset}
           />
           <PrintPreview
+            ref={previewRef}
+            onLabelSaved={handleLabelSaved}
+            onPrint={executePrint}
             boxes={filteredBoxes}
             fields={fields}
             visibleFields={visibleFields}
             cols={cols}
             size={size}
             boxField={boxField}
+            selectedYears={selectedYears}
           />
         </>
       )}

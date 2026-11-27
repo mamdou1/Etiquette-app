@@ -1,15 +1,776 @@
-import React, { useMemo } from "react";
+import {
+  groupedStatisticsText,
+  pairingText,
+  statisticsText,
+  sourceRows,
+} from '../utils/qrStatistics';
+import LabelEditorModal from './LabelEditorModal';
+import { labelToRecord, StoredLabel } from '../services/labelService';
+import React, { useMemo, useState, useEffect } from "react";
 import { QRCodeSVG } from "qrcode.react";
+import { isBoxField, resolveBoxNumber } from "../utils/boxField";
+import { createPortal } from "react-dom";
+import BoxDetailsTable from "./BoxDetailsTable";
 import { LabelRecord, LabelSize, LabelValue } from "../types";
+import { useSettings } from "../contexts/SettingsContext";
+import formatProductionDates from "../utils/formatProductionDates";
+import { QR_BYTE_LIMIT, splitQrContent } from "../utils/qrParts";
+import { joinLabelFieldRange } from "../utils/labelFieldRange";
 
 interface Props {
+  onLabelSaved?: (label: StoredLabel) => void;
   record: LabelRecord;
   allFields: string[];
   visibleFields: string[];
   size: LabelSize;
   width?: number;
   boxNumber: string;
+  boxField?: string;
   isCaissier?: boolean;
+  metaFields?: Array<{ name: string; label: string; field_type: string }>;
+}
+
+const LabelCard: React.FC<Props> = ({
+  record: sourceRecord,
+  onLabelSaved,
+  allFields,
+  visibleFields,
+  size,
+  width,
+  boxNumber: suppliedBoxNumber,
+  boxField,
+  isCaissier = false,
+  metaFields = [],
+}) => {
+  const [record, setRecord] = useState(sourceRecord);
+  const [editing, setEditing] = useState(false);
+  useEffect(() => setRecord(current => current === sourceRecord ? current : sourceRecord), [sourceRecord]);
+  const editable = Boolean(record.__labelId || (record.__agenceId && record.__typeId));
+  const boxNumber = resolveBoxNumber(record, suppliedBoxNumber);
+  const isNumberField = (name: string) => {
+    const field = metaFields.find(
+      (field) => field.name === name || field.label === name,
+    );
+    return (
+      isBoxField(name) ||
+      Boolean(field && (isBoxField(field.name) || isBoxField(field.label))) ||
+      (name === boxField && !Object.keys(record).some(isBoxField))
+    );
+  };
+  const {
+    fontSize,
+    fontStyle,
+    fontFamily,
+    showQr: globalShowQr,
+    valueSpacing,
+    qrSpacing,
+    boxPrefix,
+    fieldRange,
+    qrStatistics,
+  } = useSettings();
+  const showQr = record.__qrEnabled === 'true' ? true : record.__qrEnabled === 'false' ? false : globalShowQr;
+  const displayBoxPrefix = boxPrefix.trim() || "Boîte N°";
+
+  // ─── Helper pour récupérer la valeur  ──────────────────────
+  const getFieldValue = (key: string): string => {
+    // 1. Direct dans record
+    if (
+      record[key] !== undefined &&
+      record[key] !== null &&
+      record[key] !== ""
+    ) {
+      return formatValue(record[key]);
+    }
+
+    // 2. Dans metaValues
+    const meta = record.metaValues as Record<string, any> | undefined;
+    if (
+      meta?.[key] !== undefined &&
+      meta?.[key] !== null &&
+      meta?.[key] !== ""
+    ) {
+      return formatValue(meta[key]);
+    }
+
+    // 3. Fallback avec normalize pour upload direct
+    const val = getValue(record, key);
+    return val !== undefined && val !== null && val !== ""
+      ? formatValue(val)
+      : "";
+  };
+  // Récupérer le libellé correspondant au champ
+const getDisplayLabel = (key: string): string => {
+  const field = metaFields.find(
+    (field) => field.name === key || field.label === key
+  );
+
+  return field?.label || key;
+};
+
+  // ─── Récupération du nom de l'agence ──────────────────────
+  const agenceValue = useMemo(() => {
+    const agenceKeys = [
+      "Nom de l' Agence",
+      "Nom de l'Agence",
+      "Nom Agence",
+      "agence",
+      "Agence",
+      "agence_nom",
+      "nom_agence",
+      "nom",
+      "DGEI",
+      "dgei",
+      "agence_nom_agence",
+      "Non Agence",
+      "libelle_agence",
+    ];
+
+    for (const key of agenceKeys) {
+      const value = getFieldValue(key);
+      if (value) return value;
+    }
+
+    for (const field of visibleFields) {
+      const lowerField = field.toLowerCase();
+      if (
+        lowerField.includes("agence") ||
+        lowerField.includes("dgei") ||
+        lowerField.includes("nom")
+      ) {
+        const value = getFieldValue(field);
+        if (value) return value;
+      }
+    }
+
+    if (metaFields.length > 0) {
+      for (const mf of metaFields) {
+        const lowerLabel = mf.label.toLowerCase();
+        const lowerName = mf.name.toLowerCase();
+        if (
+          lowerLabel.includes("agence") ||
+          lowerName.includes("agence") ||
+          lowerLabel.includes("dgei") ||
+          lowerName.includes("dgei") ||
+          lowerLabel.includes("nom") ||
+          lowerName.includes("nom")
+        ) {
+          const value = getFieldValue(mf.name) || getFieldValue(mf.label);
+          if (value) return value;
+        }
+      }
+    }
+
+    for (const key of Object.keys(record)) {
+      const lowerKey = key.toLowerCase();
+      if (
+        lowerKey.includes("agence") ||
+        lowerKey.includes("dgei") ||
+        lowerKey.includes("nom")
+      ) {
+        const value = getFieldValue(key);
+        if (value) return value;
+      }
+    }
+
+    return "";
+  }, [record, visibleFields, metaFields]);
+
+  // ─── Récupération des valeurs (EXCLURE l'agence) ─────────
+  const displayValues = useMemo(() => {
+    const result: Array<{ name: string; value: string }> = [];
+    const finish = () => {
+      const boxFields = result.filter((field) => isNumberField(field.name));
+      const preferred =
+        boxFields.find(
+          (field) =>
+            field.name !== "numero_boite" && field.name !== "boxNumber",
+        ) || boxFields[0];
+      const unique = result
+        .filter((field) => !isNumberField(field.name) || field === preferred)
+        .map((field) =>
+          isNumberField(field.name) ? { ...field, value: boxNumber } : field,
+        );
+      return joinLabelFieldRange(unique, fieldRange);
+    };
+
+    if (metaFields.length > 0) {
+      // Respecter exactement l'ordre et les champs cochés du panneau,
+      // y compris le numéro de boîte qui n'est pas toujours un MetaField.
+      for (const fieldName of visibleFields) {
+        const mf = metaFields.find(
+          (field) => field.name === fieldName || field.label === fieldName,
+        );
+        const name = mf?.name || fieldName;
+        const label = mf?.label || fieldName;
+        const value = getFieldValue(name) || getFieldValue(label);
+
+        const isAgence =
+          value === agenceValue &&
+          agenceValue !== "" &&
+          (name.toLowerCase().includes("agence") ||
+            label.toLowerCase().includes("agence") ||
+            name.toLowerCase().includes("dgei") ||
+            label.toLowerCase().includes("dgei") ||
+            name.toLowerCase().includes("nom") ||
+            label.toLowerCase().includes("nom"));
+
+        if (value && !isAgence) {
+          result.push({ name: label, value });
+        }
+      }
+      return finish();
+    }
+
+    for (const field of visibleFields) {
+      const value = getFieldValue(field);
+      const isAgence =
+        value === agenceValue &&
+        agenceValue !== "" &&
+        (field.toLowerCase().includes("agence") ||
+          field.toLowerCase().includes("dgei") ||
+          field.toLowerCase().includes("nom"));
+
+      if (value && !isAgence) {
+        result.push({ name: field, value });
+      }
+    }
+
+    return finish();
+  }, [
+    record,
+    visibleFields,
+    metaFields,
+    agenceValue,
+    fieldRange,
+    boxNumber,
+    boxField,
+  ]);
+
+  // ─── Données QR ────────────────────────────────────────────
+
+  // ─── Répartition des dossiers et génération des QR ────────
+  const qrContent = useMemo(() => {
+    const originalRows = sourceRows(record);
+    const dossierCount = Math.max(1, Number(record.__dossierCount) || 1);
+
+    // Sans lignes sources, impossible de répartir fidèlement les dossiers.
+    if (!originalRows && dossierCount > 15) {
+      return {
+        batches: [],
+        parts: [],
+        error: "Impossible de répartir les dossiers : les lignes sources de cette boîte ne sont pas disponibles. Réimportez le fichier Excel.",
+      };
+    }
+
+    // Un groupe contient au maximum 15 dossiers.
+    const groups: Array<Record<string, unknown>[] | null> = originalRows
+      ? Array.from(
+          { length: Math.ceil(originalRows.length / 15) },
+          (_, index) => originalRows.slice(index * 15, (index + 1) * 15)
+        )
+      : [null];
+
+    const batches = groups.map((group, index) => {
+      const qrRecord: LabelRecord = group
+        ? {
+            ...record,
+            __sourceRows: JSON.stringify(group),
+            __dossierCount: String(group.length),
+          }
+        : record;
+
+      // Récupérer les valeurs du QR concerné.
+      const getQrFieldValue = (key: string): string => {
+        const direct = qrRecord[key];
+
+        if (direct !== undefined && direct !== null && direct !== "") {
+          return formatValue(direct);
+        }
+
+        const meta = (qrRecord as any).metaValues as
+          | Record<string, unknown>
+          | undefined;
+
+        const metaValue = meta?.[key];
+
+        if (metaValue !== undefined && metaValue !== null && metaValue !== "") {
+          return formatValue(metaValue as LabelValue);
+        }
+
+        const fallback = getValue(qrRecord, key);
+
+        return fallback !== undefined && fallback !== null && fallback !== ""
+          ? formatValue(fallback)
+          : "";
+      };
+
+      const qrLabel = (name: string, label: string) => {
+        const isAgence = [name, label].some((value) =>
+          normalizeText(value).replace(/[^a-z0-9]/g, "") === "agence" ||
+          normalizeText(value).replace(/[^a-z0-9]/g, "") === "nomagence" ||
+          normalizeText(value).replace(/[^a-z0-9]/g, "") === "agencenom" ||
+          normalizeText(value).replace(/[^a-z0-9]/g, "") === "nomdelagence"
+        );
+
+        return isAgence ? "Service Producteur" : label;
+      };
+
+      const fieldsToUse =
+        metaFields.length > 0
+          ? metaFields
+          : allFields.map((f) => ({
+              name: f,
+              label: f,
+              field_type: "text",
+            }));
+
+      const hiddenColumns = qrStatistics.hiddenColumns || [];
+
+      const boxNumberHidden = fieldsToUse.some(
+        (field) =>
+          hiddenColumns.includes(field.name) &&
+          [field.name, field.label].some(isBoxField)
+      );
+
+      const lines: string[] = [
+        ...(boxNumberHidden ? [] : [`• N° Boîte : ${boxNumber}`]),
+        `• Nombre de dossiers : ${group?.length ?? dossierCount}`,
+      ];
+
+      const paired = pairingText(qrRecord, qrStatistics, metaFields);
+
+      const groupedFields = qrStatistics.groupedEnabled
+        ? [
+            qrStatistics.groupedPrimaryField,
+            ...(qrStatistics.groupedSecondaryFields || []),
+            qrStatistics.groupedValueField,
+          ].filter(Boolean)
+        : [];
+
+      for (const field of fieldsToUse) {
+        if (hiddenColumns.includes(field.name)) continue;
+        if (groupedFields.includes(field.name)) continue;
+
+        if (
+          [field.name, field.label].some(isBoxField)
+        ) continue;
+
+        if (
+          qrStatistics.pairingEnabled &&
+          [
+            qrStatistics.pairingLabelField,
+            ...qrStatistics.pairingValueFields,
+          ].includes(field.name)
+        ) continue;
+
+        const value =
+          getQrFieldValue(field.name) ||
+          getQrFieldValue(field.label);
+
+        if (value) {
+          lines.push(
+            `• ${qrLabel(field.name, field.label)} : ${value.replace(/[\r\n]+/g, ", ")}`
+          );
+        }
+      }
+
+      if (paired) lines.push(paired);
+
+      const summary = statisticsText(qrRecord, qrStatistics, metaFields);
+      if (summary) lines.push(summary);
+
+      const groupedSummary = groupedStatisticsText(
+        qrRecord,
+        qrStatistics,
+        metaFields
+      );
+
+      if (groupedSummary) lines.push(groupedSummary);
+
+      const firstDossier = group ? index * 15 + 1 : 1;
+      const lastDossier = group
+        ? firstDossier + group.length - 1
+        : dossierCount;
+
+      const header =
+        `BOÎTE : ${boxNumber}\n` +
+        `QR ${index + 1}/${groups.length} — ` +
+        `Dossiers ${firstDossier}-${lastDossier}\n\n`;
+
+      const content = header + lines.join("\n\n");
+
+const contentBytes = new TextEncoder().encode(content).length;
+
+console.log(
+  `Boîte ${boxNumber} - QR ${index + 1}/${groups.length}`,
+  {
+    dossiers: group?.length ?? dossierCount,
+    tailleOctets: contentBytes,
+    limite: 2500,
+    contenu: content,
+  }
+);
+
+// Chaque groupe doit tenir dans un seul QR.
+
+
+      // Chaque groupe doit tenir dans un seul QR.
+      // On refuse de découper un groupe en plusieurs QR.
+      const split = splitQrContent(content, boxNumber);
+      const actualBytes = new TextEncoder().encode(content).length;
+
+if (actualBytes > QR_BYTE_LIMIT) {
+  return {
+    record: qrRecord,
+    dossierCount: group?.length ?? dossierCount,
+    error:
+      `Le groupe ${index + 1} (${group?.length ?? dossierCount} dossiers) ` +
+      `contient ${actualBytes} octets. La limite est de 2500 octets.`,
+  };
+}
+
+      if (split.error || split.parts.length !== 1) {
+        return {
+          record: qrRecord,
+          dossierCount: group?.length ?? dossierCount,
+          error:
+            `Le groupe ${index + 1} (${group?.length ?? dossierCount} dossiers) ` +
+            `dépasse la capacité d'un QR. Réduisez les champs ou les statistiques associées.`,
+        };
+      }
+
+      return {
+        record: qrRecord,
+        dossierCount: group?.length ?? dossierCount,
+        value: split.parts[0],
+      };
+    });
+
+    const failedBatch = batches.find((batch) => batch.error);
+
+    return {
+      batches,
+      parts: failedBatch
+        ? []
+        : batches.map((batch) => batch.value!),
+      error: failedBatch?.error,
+    };
+  }, [record, allFields, boxNumber, metaFields, qrStatistics]);
+
+
+
+  const hasData = displayValues.length > 0;
+  const [showQrModal, setShowQrModal] = useState(false);
+  const [selectedQrIndex, setSelectedQrIndex] = useState(0);
+
+  const fieldCount = displayValues.length;
+
+  // ─── Tailles ──────────────────────────────────────────────
+  const getValueSize = () => {
+    if (fieldCount <= 2) return `${fontSize.valueSize + 14}px`;
+    if (fieldCount <= 4) return `${fontSize.valueSize + 8}px`;
+    return `${fontSize.valueSize}px`;
+  };
+
+  const qrSize = Number(record.__qrSize) || fontSize.qrSize;
+  const renderedQrSize = qrContent.parts.length > 2
+    ? Math.max(120, Math.min(qrSize, 150))
+    : qrSize;
+
+  const valueSize = getValueSize();
+
+  const valueWeightClass =
+    fontStyle.valueWeight === "bold"
+      ? "font-bold"
+      : fontStyle.valueWeight === "semibold"
+        ? "font-semibold"
+        : "font-normal";
+
+  const valueItalicClass = fontStyle.valueItalic ? "italic" : "";
+
+  // ─── Couleurs ─────────────────────────────────────────────
+  const labelColors = [
+    { bg: "bg-blue-50", border: "border-blue-200" },
+    { bg: "bg-green-50", border: "border-green-200" },
+    { bg: "bg-purple-50", border: "border-purple-200" },
+    { bg: "bg-amber-50", border: "border-amber-200" },
+  ];
+
+  const colorIndex = Math.min(fieldCount - 1, labelColors.length - 1);
+  const color = labelColors[Math.max(0, colorIndex)];
+
+  return (
+    <div
+      data-perf-label-card="true"
+      data-perf-qr-count={showQr && !qrContent.error ? qrContent.parts.length : 0}
+      className={`label-card ${isCaissier ? "border-emerald-500 border-2 shadow-lg" : ""} ${color.bg} ${color.border}`}
+      style={{ position: 'relative', ...(width ? { width } : {}) }}
+      onClick={editable ? () => setEditing(true) : undefined}
+    >
+      {editable && <button type="button" className="no-print absolute right-2 top-2 bg-white border rounded px-2 py-1 text-xs z-10"
+        aria-label={`Modifier la boîte ${boxNumber}`} onClick={event => { event.stopPropagation(); setEditing(true); }}>Modifier</button>}
+      {editing && <LabelEditorModal record={record} onClose={() => setEditing(false)} onSaved={label => {
+        setRecord({ ...record, ...labelToRecord(label), metaValues: label.metaValues } as unknown as LabelRecord);
+        onLabelSaved?.(label);
+      }} />}
+      {/* NOM DE L'AGENCE en haut - Utilise agenceSize */}
+      {agenceValue && (
+        <div className="label-agency text-center mb-5 pb-4 border-b-2 border-border/60">
+          <span
+            className="font-mono font-extrabold text-primary tracking-wider"
+            style={{
+              fontSize: `${fontSize.agenceSize}px`,
+              letterSpacing: "0.15em",
+              lineHeight: "1.8",
+              display: "block",
+              fontFamily: fontFamily,
+            }}
+          >
+            {agenceValue}
+          </span>
+        </div>
+      )}
+
+      {!hasData ? (
+        <p className="font-mono text-sm text-muted italic text-center py-6">
+          Aucune donnée disponible
+        </p>
+      ) : (
+        <>
+          {/* Valeurs centrales avec espaces - Utilise valueSize */}
+          <div
+            className="print-label-content flex-1 text-center "
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: valueSpacing,
+            }}
+          >
+
+{displayValues.map(({ name, value }, index) => {
+  const isBoxNumber = isNumberField(name);
+
+  const datePattern = /\d{2}\/\d{2}\/\d{4}/g;
+  const found = String(value).match(datePattern);
+
+  const displayLabel = isBoxNumber
+    ? displayBoxPrefix
+    : name;
+
+  // Affichage des champs contenant plusieurs dates
+  if (found && found.length > 1 && !value.includes(" à ")) {
+    const groups = formatProductionDates(found);
+
+    return (
+      <div
+        key={index}
+        className="font-mono p-3 rounded bg-white/50 hover:bg-white/80 transition-colors"
+      >
+        <div
+          className="text-sm font-bold text-gray-700 mb-2"
+          style={{ fontFamily }}
+        >
+          {displayLabel}
+        </div>
+
+        <div className="flex flex-wrap justify-center gap-2">
+          {groups.map((g, gi) => (
+            <div
+              key={gi}
+              className="px-1 text-center text-sm"
+              style={{ minWidth: 100 }}
+            >
+              <span
+                className={`text-primary ${valueWeightClass} ${valueItalicClass}`}
+                style={{ fontSize: valueSize, fontFamily }}
+              >
+                {g}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // Affichage des champs normaux
+  return (
+    <div
+      key={index}
+      className="font-mono p-3 rounded bg-white/50 hover:bg-white/80 transition-colors"
+    >
+      <div
+        className="text-sm font-bold text-gray-700 mb-2"
+        style={{ fontFamily }}
+      >
+        {displayLabel}
+      </div>
+
+      <span
+        className={`text-primary ${valueWeightClass} ${valueItalicClass}`}
+        style={{
+          fontSize: valueSize,
+          fontFamily,
+          whiteSpace: "normal",
+          wordBreak: "break-word",
+          lineHeight: "2.0",
+        }}
+      >
+        {value || "—"}
+      </span>
+    </div>
+  );
+})}
+
+          </div>
+
+          {/* QR Code en bas avec plus d'espace */}
+          {showQr && (
+            <div className="print-label-qr flex flex-col items-center w-full mb-48">
+              {qrContent.error ? (
+                <p
+                  role="alert"
+                  className="text-sm font-bold text-red-700 border border-red-700 p-2"
+                >
+                  {qrContent.error}
+                </p>
+              ) : (
+                <div
+                  className="grid justify-center w-full"
+                  style={{
+                    gridTemplateColumns: `repeat(${Math.min(qrContent.parts.length, 2)}, ${renderedQrSize}px)`,
+                    gap: `${qrSpacing}px`,
+                  }}
+                >
+                  {qrContent.parts.map((value, index) => (
+                    <button
+                      type="button"
+                      key={index}
+                      className="bg-white shrink-0 flex flex-col items-center rounded cursor-pointer"
+                      style={{
+                        width: renderedQrSize,
+                        gridColumn:
+                          qrContent.parts.length > 1 &&
+                          qrContent.parts.length % 2 === 1 &&
+                          index === qrContent.parts.length - 1
+                            ? "1 / -1"
+                            : undefined,
+                        justifySelf: "center",
+                      }}
+                      title="Cliquer pour voir les détails de la boîte"
+                      onClick={event => {
+  event.stopPropagation();
+  setSelectedQrIndex(index);
+  setShowQrModal(true);
+}}
+                    >
+                      <QRCodeSVG
+                        value={value}
+                        size={renderedQrSize}
+                        style={{ width: renderedQrSize, height: renderedQrSize, flexShrink: 0 }}
+                        fgColor="#000000"
+                        bgColor="#ffffff"
+                        level="L"
+                        includeMargin={true}
+                      />
+                      {qrContent.parts.length > 1 && (
+                        <span className="text-xs font-bold text-black">
+                          QR {index + 1}/{qrContent.parts.length}
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {qrContent.parts.length > 1 && (
+                <p className="text-xs text-center mt-1">
+                  Scanner les {qrContent.parts.length} QR dans l’ordre pour lire
+                  toutes les informations.
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Modal interactif — non imprimé — affiche le tableau du QR */}
+          {showQr &&
+            showQrModal &&
+            createPortal(
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 print:hidden" onClick={event => event.stopPropagation()}>
+                <div
+                  role="dialog"
+                  aria-modal="true"
+                  aria-label="Détails de la boîte"
+                  className="bg-white rounded shadow-lg max-w-5xl w-full max-h-[90vh] overflow-y-auto min-w-0 p-4"
+                >
+                  <div className="flex justify-between items-center mb-3">
+                    <h3 className="text-lg font-medium">
+                      Détails de la boîte {boxNumber}
+                    </h3>
+                    <button
+                      onClick={() => setShowQrModal(false)}
+                      className="px-2 py-1 bg-gray-100 rounded"
+                      aria-label="Fermer"
+                    >
+                      Fermer
+                    </button>
+                  </div>
+                  <div className="overflow-auto">
+                    <BoxDetailsTable
+                      boxNumber={boxNumber}
+                      record={qrContent.batches[selectedQrIndex]?.record ?? record}
+                      fields={
+                        metaFields.length > 0
+                          ? metaFields
+                          : allFields.map((name) => ({ name, label: name }))
+                      }
+                    />
+                  </div>
+                </div>
+              </div>,
+              document.body,
+            )}
+        </>
+      )}
+    </div>
+  );
+};
+
+// ─── Fonctions utilitaires ────────────────────────────────
+function formatValue(value: LabelValue): string {
+  if (Array.isArray(value)) {
+    return value.filter((v) => v && v.toString().trim()).join(", ");
+  }
+
+  // ✅ AJOUT 1 : Si c'est une année (4 chiffres entre 1900 et 2100), la garder telle quelle
+  // Empêche "2015" d'être reformaté en "07/07/1905"
+  if (typeof value === "string" || typeof value === "number") {
+    const str = String(value).trim();
+    if (/^(19|20)\d{2}$/.test(str)) {
+      return str;
+    }
+  }
+
+  // Si c'est une vraie Date JS, conserver la date exacte.
+  const anyValue = value as any;
+  if (anyValue instanceof Date && !Number.isNaN(anyValue.getTime())) {
+    const y = anyValue.getFullYear();
+    const day = String(anyValue.getDate()).padStart(2, "0");
+    const month = String(anyValue.getMonth() + 1).padStart(2, "0");
+    return `${day}/${month}/${y}`;
+  }
+
+  if (typeof value === "string") return value;
+
+  if (typeof value === "number") return value.toString();
+  return String(value);
+}
+
+function normalizeText(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
 }
 
 const KEY_MAPPING: Record<string, string> = {
@@ -39,15 +800,14 @@ const KEY_MAPPING: Record<string, string> = {
   agence: "Nom de l'Agence",
 };
 
-function normalizeText(value: string): string {
-  return value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .trim();
+function getDisplayKey(rawKey: string): string {
+  return KEY_MAPPING[normalizeText(rawKey)] || rawKey;
 }
 
-function findValue(record: LabelRecord, possibleKeys: string[]): LabelValue | undefined {
+function findValue(
+  record: LabelRecord,
+  possibleKeys: string[],
+): LabelValue | undefined {
   for (const key of possibleKeys) {
     const normalizedKey = normalizeText(key);
     for (const recordKey of Object.keys(record)) {
@@ -86,171 +846,4 @@ function getValue(record: LabelRecord, key: string): LabelValue | undefined {
   return undefined;
 }
 
-function formatValue(value: LabelValue): string {
-  if (Array.isArray(value)) {
-    return value.filter(v => v && v.toString().trim()).join(", ");
-  }
-  if (typeof value === "string") return value;
-  if (typeof value === "number") return value.toString();
-  return String(value);
-}
-
-function getDisplayKey(rawKey: string): string {
-  return KEY_MAPPING[normalizeText(rawKey)] || rawKey;
-}
-
-function getDisplayFields(record: LabelRecord, visibleFields: string[]): { key: string; label: string; value: string }[] {
-  const result: { key: string; label: string; value: string }[] = [];
-
-  for (const field of visibleFields) {
-    const value = getValue(record, field);
-    if (value !== undefined && value !== null && value !== "") {
-      result.push({
-        key: field,
-        label: getDisplayKey(field),
-        value: formatValue(value),
-      });
-    }
-  }
-
-  return result;
-}
-
-const fontScale: Record<LabelSize, number> = { sm: 0.85, md: 1, lg: 1.15 };
-
-const LabelCard: React.FC<Props> = ({
-  record,
-  allFields,
-  visibleFields,
-  size,
-  width,
-  boxNumber,
-  isCaissier = false,
-}) => {
-  const scale = fontScale[size];
-
-  const displayFields = useMemo(() => {
-    return getDisplayFields(record, visibleFields);
-  }, [record, visibleFields]);
-
-  const qrData = useMemo(() => {
-    const lines: string[] = [`N° Boîte: ${boxNumber}`];
-    for (const field of allFields) {
-      const value = getValue(record, field);
-      if (value !== undefined && value !== null && value !== "") {
-        lines.push(`${getDisplayKey(field)}: ${formatValue(value)}`);
-      }
-    }
-    return lines.join(" | ");
-  }, [record, allFields, boxNumber]);
-
-  const hasData = displayFields.length > 0;
-  const fieldCount = displayFields.length;
-
-  const getFontSize = () => {
-    if (fieldCount <= 2) return "text-base";
-    if (fieldCount <= 4) return "text-sm";
-    return "text-xs";
-  };
-
-  const getLabelFontSize = () => {
-    if (fieldCount <= 2) return "text-[21px]";
-    if (fieldCount <= 4) return "text-[19px]";
-    return "text-[15px]";
-  };
-
-  const getValueFontSize = () => {
-    if (fieldCount <= 2) return "text-[25px]";
-    if (fieldCount <= 4) return "text-[21px]";
-    return "text-[19px]";
-  };
-
-  const fontSize = getFontSize();
-  const labelSize = getLabelFontSize();
-  const valueSize = getValueFontSize();
-  const qrSize = fieldCount <= 2 ? 60 : fieldCount <= 4 ? 50 : 40;
-
-  const labelColors = [
-    { bg: "bg-blue-50", border: "border-blue-200" },
-    { bg: "bg-green-50", border: "border-green-200" },
-    { bg: "bg-purple-50", border: "border-purple-200" },
-    { bg: "bg-amber-50", border: "border-amber-200" },
-  ];
-
-  const colorIndex = Math.min(fieldCount - 1, labelColors.length - 1);
-  const color = labelColors[Math.max(0, colorIndex)];
-
-  return (
-    <div
-      className={`label-card ${isCaissier ? "border-emerald-500 border-2 shadow-lg" : ""} ${color.bg} ${color.border}`}
-      style={width ? { width } : undefined}
-    >
-      <div className="mb-2 pb-2 border-b-2 border-border flex items-center justify-between">
-        <span className="font-mono font-extrabold text-primary text-xl tracking-tight">
-          N° de la boîte: {boxNumber}
-        </span>
-        <div className="flex items-center gap-2">
-          {isCaissier && (
-            <span className="bg-emerald-500 text-white text-[10px] font-mono font-bold px-2.5 py-1 rounded-full shadow-sm">
-              👤 Caissier
-            </span>
-          )}
-        </div>
-      </div>
-
-      {!hasData ? (
-        <p className="font-mono text-sm text-muted italic text-center py-6">
-          Aucune donnée disponible
-        </p>
-      ) : (
-        <>
-          <div className="flex-1 space-y-1.5 py-1">
-            {displayFields.map(({ key, label, value }) => (
-              <div
-                key={key}
-                className="font-mono flex items-baseline gap-1.5 min-w-0 p-1 rounded bg-white/50 hover:bg-white/80 transition-colors"
-              >
-                <span
-                  className={`text-muted font-semibold flex-shrink-0 ${labelSize}`}
-                  style={{ letterSpacing: "0.09em" }}
-                >
-                  {label}:
-                </span>
-                <span
-                  className={`font-extrabolt text-primary ${valueSize}`}
-                  style={{ whiteSpace: "normal", wordBreak: "break-word" }}
-                >
-                  {value || "—"}
-                </span>
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-1 flex justify-end">
-            <div className="bg-white p-1 rounded shadow-sm border border-border/30">
-              <QRCodeSVG
-                value={qrData}
-                size={qrSize}
-                fgColor="#1a1a2e"
-                bgColor="#ffffff"
-                level="M"
-                includeMargin={false}
-              />
-            </div>
-          </div>
-        </>
-      )}
-
-      <div className="mt-1 pt-1 border-t border-dashed border-border/60 flex justify-between items-center">
-        <span className="font-mono text-muted/50 font-bold" style={{ fontSize: "0.5rem", letterSpacing: "0.05em" }}>
-          {boxNumber}
-        </span>
-        <span className="font-mono text-muted/40" style={{ fontSize: "0.45rem" }}>
-          {new Date().toLocaleDateString("fr-FR")}
-        </span>
-      </div>
-    </div>
-  );
-};
-
-export default LabelCard;
+export default React.memo(LabelCard);
